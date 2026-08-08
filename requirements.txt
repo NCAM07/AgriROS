@@ -7,3 +7,6 @@ fastapi
 sqlalchemy
 typing
 dotenv
+psycopg
+sys
+os
