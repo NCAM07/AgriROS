@@ -1,0 +1,8 @@
+pydantic
+pandas
+plotly
+datetime
+streamlit
+fastapi
+sqlalchemy
+typing
