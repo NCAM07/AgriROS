@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from datetime import date
 import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from ai_search.search import ai_search, keyword_search
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from dashboard.utils.db import (
@@ -264,10 +266,10 @@ with st.sidebar:
 
     st.markdown("---")
     page = st.selectbox(
-        "NAVIGATE",
-        ["Overview", "Projects", "Prototype Tracker", "Researchers", "Data Entry"]
+    "NAVIGATE",
+        ["Overview", "Projects", "Prototype Tracker", "Researchers", "AI Search", "Data Entry"]
         if role == "Staff View"
-        else ["Overview", "Projects", "Prototype Tracker", "Researchers"]
+        else ["Overview", "Projects", "Prototype Tracker", "Researchers", "AI Search"]
     )
 
     st.markdown("---")
@@ -719,3 +721,148 @@ elif page == "Data Entry":
                         st.success("✅ Prototype saved successfully.")
                     except Exception as e:
                         st.error(f"Error saving prototype: {e}")
+
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PAGE 6 — AI SEARCH
+# ══════════════════════════════════════════════════════════════════════════
+elif page == "AI Search":
+    st.markdown('<div class="page-title">Research Intelligence Search</div>',
+                unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-sub">Ask a question in plain English — '
+        'the system searches the project database and returns a direct answer.</div>',
+        unsafe_allow_html=True
+    )
+
+    # ── Example queries ──
+    st.markdown('<div class="section-header">Example Questions</div>',
+                unsafe_allow_html=True)
+
+    examples = [
+        "Which projects are currently behind schedule?",
+        "Show me all completed FPM projects.",
+        "Which prototypes have reached the testing stage?",
+        "What projects are funded by FMARD?",
+        "Which projects have utilized more than 90% of their budget?",
+        "List all ongoing projects in Engineering and Scientific Services.",
+    ]
+
+    cols = st.columns(3)
+    for i, example in enumerate(examples):
+        with cols[i % 3]:
+            if st.button(example, key=f"example_{i}"):
+                st.session_state["search_query"] = example
+
+    st.markdown("---")
+
+    # ── Search input ──
+    query = st.text_input(
+        "Your Question",
+        value=st.session_state.get("search_query", ""),
+        placeholder="e.g. Which FPM projects are still ongoing?",
+        key="search_input"
+    )
+
+    col_ai, col_kw = st.columns([1, 1])
+    with col_ai:
+        search_ai = st.button("🤖 Ask AI", use_container_width=True)
+    with col_kw:
+        search_kw = st.button("🔍 Keyword Search", use_container_width=True)
+
+    # ── AI Search ──
+    if search_ai and query:
+        with st.spinner("Searching..."):
+            result = ai_search(query, projects_df, DEPT_MAP, DEPT_FULL)
+
+        if result["mode"] == "ai":
+            st.success("🤖 AI Answer")
+        else:
+            st.warning("⚠️ AI unavailable — showing keyword results.")
+
+        st.markdown(f"""
+        <div style="
+            background: #F1F8E9;
+            border-left: 4px solid #4CAF50;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            font-size: 0.95rem;
+            color: #1B5E20;
+            line-height: 1.7;
+        ">
+            {result['answer']}
+        </div>
+        """, unsafe_allow_html=True)
+
+        if result["matched_ids"]:
+            st.markdown(
+                f'<div class="section-header">Matched Projects '
+                f'({len(result["matched_ids"])})</div>',
+                unsafe_allow_html=True
+            )
+            matched_df = projects_df[
+                projects_df["id"].isin(result["matched_ids"])
+            ].copy()
+            matched_df["Department"] = matched_df["department_id"].map(DEPT_FULL)
+            display_cols = matched_df[[
+                "title", "Department", "status",
+                "start_date", "budget_allocated"
+            ]].copy()
+            display_cols.columns = [
+                "Title", "Department", "Status",
+                "Start Date", "Budget (₦)"
+            ]
+            st.dataframe(display_cols, use_container_width=True, hide_index=True)
+        else:
+            st.info("No matching projects found for this query.")
+
+        if result.get("error"):
+            with st.expander("Technical details"):
+                st.code(result["error"])
+
+    # ── Keyword Search ──
+    if search_kw and query:
+        kw_results = keyword_search(query, projects_df, DEPT_MAP)
+
+        st.markdown(
+            f'<div class="section-header">Keyword Results '
+            f'({len(kw_results)})</div>',
+            unsafe_allow_html=True
+        )
+
+        if kw_results.empty:
+            st.info(f"No projects found matching '{query}'.")
+        else:
+            kw_results["Department"] = kw_results["department_id"].map(DEPT_FULL)
+            display_kw = kw_results[[
+                "title", "Department", "status",
+                "start_date", "budget_allocated"
+            ]].copy()
+            display_kw.columns = [
+                "Title", "Department", "Status",
+                "Start Date", "Budget (₦)"
+            ]
+            st.dataframe(display_kw, use_container_width=True, hide_index=True)
+
+    # ── Search Log ──
+    if query and (search_ai or search_kw):
+        try:
+            from database import SessionLocal
+            from models.models import SearchLog
+            db = SessionLocal()
+            log = SearchLog(
+                query_text=query,
+                queried_by=role,
+                results_returned=len(
+                    result["matched_ids"]
+                    if search_ai
+                    else kw_results
+                )
+            )
+            db.add(log)
+            db.commit()
+            db.close()
+        except Exception:
+            pass
