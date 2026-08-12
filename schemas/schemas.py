@@ -38,7 +38,17 @@ class ResearcherOut(ResearcherCreate):
 class ProjectCreate(BaseModel):
     title: str
     department_id: int
-    principal_investigator_id: Optional[int] = None
+
+    # Principal supervisor
+    supervisor_name: Optional[str] = None
+    supervisor_designation: Optional[str] = None
+    supervisor_email: Optional[str] = None
+    supervisor_phone: Optional[str] = None
+
+    # Lead researcher
+    lead_researcher_name: Optional[str] = None
+    lead_researcher_designation: Optional[str] = None
+
     status: str
     start_date: Optional[date] = None
     expected_end_date: Optional[date] = None
@@ -49,6 +59,8 @@ class ProjectCreate(BaseModel):
     objectives: Optional[str] = None
     summary: Optional[str] = None
     keywords: Optional[str] = None
+    machine_built: Optional[bool] = False
+    prototype_id: Optional[int] = None
 
 class ProjectOut(ProjectCreate):
     id: int

@@ -17,38 +17,174 @@ from dashboard.utils.db import (
 
 # ── PLACEHOLDER DATA ──────────────────────────────────────────────────────
 PLACEHOLDER_PROJECTS = [
-    {"id": 1, "title": "Development of Low-Cost Maize Sheller for Smallholder Farmers",
-     "department_id": 1, "status": "Completed", "start_date": date(2020, 1, 10),
-     "expected_end_date": date(2021, 6, 30), "budget_allocated": 2500000,
-     "budget_utilized": 2300000, "funding_source": "FMARD", "keywords": "maize, sheller"},
-    {"id": 2, "title": "Adaptive Research on Solar-Powered Irrigation Pump Systems",
-     "department_id": 1, "status": "Ongoing", "start_date": date(2023, 3, 1),
-     "expected_end_date": date(2025, 3, 1), "budget_allocated": 5000000,
-     "budget_utilized": 2800000, "funding_source": "World Bank", "keywords": "solar, irrigation"},
-    {"id": 3, "title": "Evaluation of Tractor-Drawn Cassava Ridger Performance in Nigerian Soils",
-     "department_id": 1, "status": "Ongoing", "start_date": date(2022, 6, 15),
-     "expected_end_date": date(2024, 6, 15), "budget_allocated": 3200000,
-     "budget_utilized": 3200000, "funding_source": "NCAM Internal", "keywords": "cassava, tractor"},
-    {"id": 4, "title": "Fabrication and Testing of Multi-Crop Thresher for Northern Nigeria",
-     "department_id": 2, "status": "Pending Evaluation", "start_date": date(2021, 9, 1),
-     "expected_end_date": date(2023, 3, 1), "budget_allocated": 1800000,
-     "budget_utilized": 1750000, "funding_source": "FMARD", "keywords": "thresher, multi-crop"},
-    {"id": 5, "title": "Design of Ergonomic Hand Tools for Female Farmers in Root Crop Production",
-     "department_id": 1, "status": "Completed", "start_date": date(2019, 4, 1),
-     "expected_end_date": date(2020, 4, 1), "budget_allocated": 900000,
-     "budget_utilized": 870000, "funding_source": "USAID", "keywords": "ergonomic, hand tools"},
-    {"id": 6, "title": "Prototype Development of Motorized Yam Pounding Machine",
-     "department_id": 2, "status": "Behind Schedule", "start_date": date(2022, 1, 1),
-     "expected_end_date": date(2023, 6, 30), "budget_allocated": 4200000,
-     "budget_utilized": 1900000, "funding_source": "NCAM Internal", "keywords": "yam, motorized"},
-    {"id": 7, "title": "Commercialization of NCAM Jab Planter — Phase II Rollout",
-     "department_id": 1, "status": "Commercialized", "start_date": date(2018, 2, 1),
-     "expected_end_date": date(2019, 12, 31), "budget_allocated": 6000000,
-     "budget_utilized": 5800000, "funding_source": "CBN AgriFinance", "keywords": "jab planter"},
-    {"id": 8, "title": "Soil Compaction Analysis Under Different Tractor Operations",
-     "department_id": 1, "status": "Abandoned", "start_date": date(2020, 7, 1),
-     "expected_end_date": date(2021, 12, 31), "budget_allocated": 1200000,
-     "budget_utilized": 400000, "funding_source": "NCAM Internal", "keywords": "soil, tractor"},
+    {
+        "id": 1,
+        "title": "Development of Low-Cost Maize Sheller for Smallholder Farmers",
+        "department_id": 1,
+        "status": "Completed",
+        "supervisor_name": "Dr. Abubakar Musa",
+        "supervisor_designation": "Principal Research Officer",
+        "supervisor_email": "a.musa@ncam.gov.ng",
+        "supervisor_phone": "08012345678",
+        "lead_researcher_name": "Engr. Yusuf Abdullahi",
+        "lead_researcher_designation": "Senior Research Engineer",
+        "start_date": date(2020, 1, 10),
+        "expected_end_date": date(2021, 6, 30),
+        "actual_end_date": date(2021, 8, 15),
+        "budget_allocated": 2500000,
+        "budget_utilized": 2300000,
+        "funding_source": "FMARD",
+        "keywords": "maize, sheller",
+        "machine_built": True,
+        "prototype_id": 1
+    },
+    {
+        "id": 2,
+        "title": "Adaptive Research on Solar-Powered Irrigation Pump Systems",
+        "department_id": 1,
+        "status": "Ongoing",
+        "supervisor_name": "Dr. Suleiman Bello",
+        "supervisor_designation": "Chief Research Officer",
+        "supervisor_email": "s.bello@ncam.gov.ng",
+        "supervisor_phone": "08023456789",
+        "lead_researcher_name": "Engr. Fatima Usman",
+        "lead_researcher_designation": "Research Engineer",
+        "start_date": date(2023, 3, 1),
+        "expected_end_date": date(2025, 3, 1),
+        "actual_end_date": None,
+        "budget_allocated": 5000000,
+        "budget_utilized": 2800000,
+        "funding_source": "World Bank",
+        "keywords": "solar, irrigation",
+        "machine_built": False,
+        "prototype_id": None
+    },
+    {
+        "id": 3,
+        "title": "Evaluation of Tractor-Drawn Cassava Ridger Performance in Nigerian Soils",
+        "department_id": 1,
+        "status": "Ongoing",
+        "supervisor_name": "Dr. Abubakar Musa",
+        "supervisor_designation": "Principal Research Officer",
+        "supervisor_email": "a.musa@ncam.gov.ng",
+        "supervisor_phone": "08012345678",
+        "lead_researcher_name": "Engr. Chukwuemeka Obi",
+        "lead_researcher_designation": "Research Officer",
+        "start_date": date(2022, 6, 15),
+        "expected_end_date": date(2024, 6, 15),
+        "actual_end_date": None,
+        "budget_allocated": 3200000,
+        "budget_utilized": 3200000,
+        "funding_source": "NCAM Internal",
+        "keywords": "cassava, tractor, ridger",
+        "machine_built": True,
+        "prototype_id": 2
+    },
+    {
+        "id": 4,
+        "title": "Fabrication and Testing of Multi-Crop Thresher for Northern Nigeria",
+        "department_id": 2,
+        "status": "Pending Evaluation",
+        "supervisor_name": "Engr. Chioma Okafor",
+        "supervisor_designation": "Senior Engineer",
+        "supervisor_email": "c.okafor@ncam.gov.ng",
+        "supervisor_phone": "08034567890",
+        "lead_researcher_name": "Engr. Ibrahim Lawal",
+        "lead_researcher_designation": "Research Engineer",
+        "start_date": date(2021, 9, 1),
+        "expected_end_date": date(2023, 3, 1),
+        "actual_end_date": None,
+        "budget_allocated": 1800000,
+        "budget_utilized": 1750000,
+        "funding_source": "FMARD",
+        "keywords": "thresher, multi-crop",
+        "machine_built": True,
+        "prototype_id": 3
+    },
+    {
+        "id": 5,
+        "title": "Design of Ergonomic Hand Tools for Female Farmers in Root Crop Production",
+        "department_id": 1,
+        "status": "Completed",
+        "supervisor_name": "Dr. Suleiman Bello",
+        "supervisor_designation": "Chief Research Officer",
+        "supervisor_email": "s.bello@ncam.gov.ng",
+        "supervisor_phone": "08023456789",
+        "lead_researcher_name": "Dr. Amina Garba",
+        "lead_researcher_designation": "Research Officer",
+        "start_date": date(2019, 4, 1),
+        "expected_end_date": date(2020, 4, 1),
+        "actual_end_date": date(2020, 5, 20),
+        "budget_allocated": 900000,
+        "budget_utilized": 870000,
+        "funding_source": "USAID",
+        "keywords": "ergonomic, hand tools, women",
+        "machine_built": True,
+        "prototype_id": None
+    },
+    {
+        "id": 6,
+        "title": "Prototype Development of Motorized Yam Pounding Machine",
+        "department_id": 2,
+        "status": "Behind Schedule",
+        "supervisor_name": "Engr. Chioma Okafor",
+        "supervisor_designation": "Senior Engineer",
+        "supervisor_email": "c.okafor@ncam.gov.ng",
+        "supervisor_phone": "08034567890",
+        "lead_researcher_name": "Engr. Taiwo Adeyemi",
+        "lead_researcher_designation": "Junior Research Engineer",
+        "start_date": date(2022, 1, 1),
+        "expected_end_date": date(2023, 6, 30),
+        "actual_end_date": None,
+        "budget_allocated": 4200000,
+        "budget_utilized": 1900000,
+        "funding_source": "NCAM Internal",
+        "keywords": "yam, motorized, pounding",
+        "machine_built": True,
+        "prototype_id": 4
+    },
+    {
+        "id": 7,
+        "title": "Commercialization of NCAM Jab Planter — Phase II Rollout",
+        "department_id": 1,
+        "status": "Commercialized",
+        "supervisor_name": "Dr. Abubakar Musa",
+        "supervisor_designation": "Principal Research Officer",
+        "supervisor_email": "a.musa@ncam.gov.ng",
+        "supervisor_phone": "08012345678",
+        "lead_researcher_name": "Engr. Yusuf Abdullahi",
+        "lead_researcher_designation": "Senior Research Engineer",
+        "start_date": date(2018, 2, 1),
+        "expected_end_date": date(2019, 12, 31),
+        "actual_end_date": date(2020, 1, 15),
+        "budget_allocated": 6000000,
+        "budget_utilized": 5800000,
+        "funding_source": "CBN AgriFinance",
+        "keywords": "jab planter, commercialization",
+        "machine_built": True,
+        "prototype_id": None
+    },
+    {
+        "id": 8,
+        "title": "Soil Compaction Analysis Under Different Tractor Operations",
+        "department_id": 1,
+        "status": "Abandoned",
+        "supervisor_name": "Dr. Suleiman Bello",
+        "supervisor_designation": "Chief Research Officer",
+        "supervisor_email": "s.bello@ncam.gov.ng",
+        "supervisor_phone": "08023456789",
+        "lead_researcher_name": "Engr. Chukwuemeka Obi",
+        "lead_researcher_designation": "Research Officer",
+        "start_date": date(2020, 7, 1),
+        "expected_end_date": date(2021, 12, 31),
+        "actual_end_date": None,
+        "budget_allocated": 1200000,
+        "budget_utilized": 400000,
+        "funding_source": "NCAM Internal",
+        "keywords": "soil, tractor, compaction",
+        "machine_built": False,
+        "prototype_id": None
+    },
 ]
 
 PLACEHOLDER_PROTOTYPES = [
@@ -430,20 +566,70 @@ elif page == "Projects":
     st.markdown("---")
 
     for _, row in filtered.iterrows():
-        color = STATUS_COLORS.get(row["status"], "#9E9E9E")
+        machine_label = "🔧 Machine Built" if row.get("machine_built") else "📄 No Machine Yet"
+        machine_color = "#2E7D32" if row.get("machine_built") else "#9E9E9E"
+
         with st.expander(f"📋 {row['title']}"):
+
+            # ── Status + Machine flag ──
             c1, c2, c3 = st.columns(3)
             c1.markdown(f"**Department:** {DEPT_FULL.get(row['department_id'], 'N/A')}")
-            c2.markdown(f"**Status:** :{row['status']}")
-            c3.markdown(f"**Funding Source:** {row.get('funding_source', 'N/A')}")
+            c2.markdown(f"**Status:** {row['status']}")
+            c3.markdown(
+                f"<span style='background:{machine_color};color:white;"
+                f"padding:0.2rem 0.7rem;border-radius:12px;"
+                f"font-size:0.78rem;font-weight:600;'>{machine_label}</span>",
+                unsafe_allow_html=True
+            )
 
-            c4, c5, c6 = st.columns(3)
-            c4.markdown(f"**Start Date:** {row.get('start_date', 'N/A')}")
-            c5.markdown(f"**Expected End:** {row.get('expected_end_date', 'N/A')}")
+            st.markdown("---")
+
+            # ── Supervisor details ──
+            st.markdown("**Principal Supervisor**")
+            cs1, cs2, cs3, cs4 = st.columns(4)
+            cs1.markdown(f"**Name:** {row.get('supervisor_name', 'N/A')}")
+            cs2.markdown(f"**Designation:** {row.get('supervisor_designation', 'N/A')}")
+            cs3.markdown(f"**Email:** {row.get('supervisor_email', 'N/A')}")
+            cs4.markdown(f"**Phone:** {row.get('supervisor_phone', 'N/A')}")
+
+            st.markdown("---")
+
+            # ── Lead researcher ──
+            st.markdown("**Lead Researcher**")
+            cl1, cl2 = st.columns(2)
+            cl1.markdown(f"**Name:** {row.get('lead_researcher_name', 'N/A')}")
+            cl2.markdown(f"**Designation:** {row.get('lead_researcher_designation', 'N/A')}")
+
+            st.markdown("---")
+
+            # ── Dates ──
+            st.markdown("**Timeline**")
+            cd1, cd2, cd3 = st.columns(3)
+            cd1.markdown(f"**Start Date:** {row.get('start_date', 'N/A')}")
+            cd2.markdown(f"**Expected End:** {row.get('expected_end_date', 'N/A')}")
+            actual = row.get('actual_end_date')
+            cd3.markdown(
+                f"**Actual End:** {actual if actual else '—  Not yet completed'}"
+            )
+
+            st.markdown("---")
+
+            # ── Budget ──
             if row.get("budget_allocated"):
-                util = (row.get("budget_utilized", 0) or 0) / row["budget_allocated"] * 100
-                c6.markdown(f"**Budget Utilized:** {util:.1f}% of ₦{row['budget_allocated']:,.0f}")
+                utilized = row.get("budget_utilized") or 0
+                pct = utilized / row["budget_allocated"] * 100
+                st.markdown("**Budget**")
+                cb1, cb2, cb3 = st.columns(3)
+                cb1.markdown(f"**Allocated:** ₦{row['budget_allocated']:,.0f}")
+                cb2.markdown(f"**Utilized:** ₦{utilized:,.0f}")
+                cb3.markdown(f"**Utilization:** {pct:.1f}%")
+                st.progress(min(pct / 100, 1.0))
 
+            st.markdown("---")
+
+            # ── Other details ──
+            if row.get("funding_source"):
+                st.markdown(f"**Funding Source:** {row['funding_source']}")
             if row.get("summary"):
                 st.markdown(f"**Summary:** {row['summary']}")
             if row.get("keywords"):
@@ -560,31 +746,62 @@ elif page == "Data Entry":
     ])
 
     # ── NEW PROJECT ──
-    with tab1:
-        st.markdown('<div class="section-header">Register a New Project</div>', unsafe_allow_html=True)
+   with tab1:
+        st.markdown(
+            '<div class="section-header">Register a New Project</div>',
+            unsafe_allow_html=True
+        )
         with st.form("project_form"):
             title = st.text_input("Project Title *")
             dept_options = {v: k for k, v in DEPT_FULL.items()}
             dept_selected = st.selectbox("Department *", list(DEPT_FULL.values()))
             dept_id = dept_options[dept_selected]
-
             status = st.selectbox("Status *", [
                 "Ongoing", "Completed", "Abandoned",
                 "Pending Evaluation", "Behind Schedule", "Commercialized"
             ])
 
-            c1, c2 = st.columns(2)
-            start_date = c1.date_input("Start Date")
-            end_date = c2.date_input("Expected End Date")
+            st.markdown("**Principal Supervisor**")
+            ps1, ps2 = st.columns(2)
+            supervisor_name = ps1.text_input("Supervisor Full Name")
+            supervisor_designation = ps2.text_input("Supervisor Designation")
+            ps3, ps4 = st.columns(2)
+            supervisor_email = ps3.text_input("Supervisor Email")
+            supervisor_phone = ps4.text_input("Supervisor Phone")
 
-            c3, c4 = st.columns(2)
-            budget_allocated = c3.number_input("Budget Allocated (₦)", min_value=0.0, step=10000.0)
-            budget_utilized = c4.number_input("Budget Utilized (₦)", min_value=0.0, step=10000.0)
+            st.markdown("**Lead Researcher**")
+            lr1, lr2 = st.columns(2)
+            lead_researcher_name = lr1.text_input("Lead Researcher Full Name")
+            lead_researcher_designation = lr2.text_input("Lead Researcher Designation")
+
+            st.markdown("**Timeline**")
+            d1, d2, d3 = st.columns(3)
+            start_date = d1.date_input("Start Date")
+            expected_end_date = d2.date_input("Expected End Date")
+            actual_end_date = d3.date_input(
+                "Actual End Date (if completed)",
+                value=None
+            )
+
+            st.markdown("**Budget**")
+            b1, b2 = st.columns(2)
+            budget_allocated = b1.number_input(
+                "Budget Allocated (₦)", min_value=0.0, step=10000.0
+            )
+            budget_utilized = b2.number_input(
+                "Budget Utilized (₦)", min_value=0.0, step=10000.0
+            )
 
             funding_source = st.text_input("Funding Source")
             objectives = st.text_area("Objectives")
             summary_text = st.text_area("Project Summary")
             keywords = st.text_input("Keywords (comma-separated)")
+
+            machine_built = st.radio(
+                "Has a machine/prototype been built from this project?",
+                ["No", "Yes"],
+                horizontal=True
+            )
 
             submitted = st.form_submit_button("Save Project")
             if submitted:
@@ -596,14 +813,22 @@ elif page == "Data Entry":
                             "title": title,
                             "department_id": dept_id,
                             "status": status,
+                            "supervisor_name": supervisor_name or None,
+                            "supervisor_designation": supervisor_designation or None,
+                            "supervisor_email": supervisor_email or None,
+                            "supervisor_phone": supervisor_phone or None,
+                            "lead_researcher_name": lead_researcher_name or None,
+                            "lead_researcher_designation": lead_researcher_designation or None,
                             "start_date": start_date,
-                            "expected_end_date": end_date,
+                            "expected_end_date": expected_end_date,
+                            "actual_end_date": actual_end_date,
                             "budget_allocated": budget_allocated or None,
                             "budget_utilized": budget_utilized or None,
                             "funding_source": funding_source or None,
                             "objectives": objectives or None,
                             "summary": summary_text or None,
-                            "keywords": keywords or None
+                            "keywords": keywords or None,
+                            "machine_built": machine_built == "Yes"
                         })
                         st.success("✅ Project saved successfully.")
                     except Exception as e:

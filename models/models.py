@@ -46,7 +46,17 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(500), nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id"))
-    principal_investigator_id = Column(Integer, ForeignKey("researchers.id"))
+    
+    # Principal supervisor (stored directly on project)
+    supervisor_name = Column(String(200))
+    supervisor_designation = Column(String(150))
+    supervisor_email = Column(String(150))
+    supervisor_phone = Column(String(20))
+
+    # Lead researcher (stored directly on project)
+    lead_researcher_name = Column(String(200))
+    lead_researcher_designation = Column(String(150))
+
     status = Column(String(50), nullable=False)
     start_date = Column(Date)
     expected_end_date = Column(Date)
@@ -57,13 +67,21 @@ class Project(Base):
     objectives = Column(Text)
     summary = Column(Text)
     keywords = Column(String(300))
+
+    # Machine built flag
+    machine_built = Column(Boolean, default=False)
+    prototype_id = Column(Integer, ForeignKey("prototypes.id"), nullable=True)
+
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now())
 
     department = relationship("Department", back_populates="projects")
-    principal_investigator = relationship("Researcher", back_populates="projects")
     milestones = relationship("Milestone", back_populates="project")
-    prototypes = relationship("Prototype", back_populates="project")
+    prototypes = relationship(
+        "Prototype",
+        back_populates="project",
+        foreign_keys="Prototype.project_id"
+    )
 
 
 class Milestone(Base):

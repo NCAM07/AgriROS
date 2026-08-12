@@ -45,14 +45,23 @@ def fetch_all_projects():
                 "id": p.id,
                 "title": p.title,
                 "department_id": p.department_id,
+                "supervisor_name": p.supervisor_name,
+                "supervisor_designation": p.supervisor_designation,
+                "supervisor_email": p.supervisor_email,
+                "supervisor_phone": p.supervisor_phone,
+                "lead_researcher_name": p.lead_researcher_name,
+                "lead_researcher_designation": p.lead_researcher_designation,
                 "status": p.status,
                 "start_date": p.start_date,
                 "expected_end_date": p.expected_end_date,
+                "actual_end_date": p.actual_end_date,
                 "budget_allocated": p.budget_allocated,
                 "budget_utilized": p.budget_utilized,
                 "funding_source": p.funding_source,
                 "keywords": p.keywords,
                 "summary": p.summary,
+                "machine_built": p.machine_built,
+                "prototype_id": p.prototype_id,
             }
             for p in projects
         ]
