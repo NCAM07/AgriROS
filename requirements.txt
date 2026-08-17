@@ -10,3 +10,4 @@ pandas
 requests
 anthropic
 groq
+Pillow

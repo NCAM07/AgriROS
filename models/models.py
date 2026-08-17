@@ -33,11 +33,13 @@ class Researcher(Base):
     email = Column(String(150))
     phone = Column(String(20))
     specialization = Column(String(200))
+    linkedin = Column(String(200))
+    researchgate = Column(String(200))
+    other_handle = Column(String(200))
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     department = relationship("Department", back_populates="researchers")
-    projects = relationship("Project", back_populates="principal_investigator")
 
 
 class Project(Base):
@@ -46,17 +48,12 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(500), nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id"))
-    
-    # Principal supervisor (stored directly on project)
     supervisor_name = Column(String(200))
     supervisor_designation = Column(String(150))
     supervisor_email = Column(String(150))
     supervisor_phone = Column(String(20))
-
-    # Lead researcher (stored directly on project)
     lead_researcher_name = Column(String(200))
     lead_researcher_designation = Column(String(150))
-
     status = Column(String(50), nullable=False)
     start_date = Column(Date)
     expected_end_date = Column(Date)
@@ -67,21 +64,14 @@ class Project(Base):
     objectives = Column(Text)
     summary = Column(Text)
     keywords = Column(String(300))
-
-    # Machine built flag
     machine_built = Column(Boolean, default=False)
-    prototype_id = Column(Integer, ForeignKey("prototypes.id"), nullable=True)
-
+    prototype_id = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now())
 
     department = relationship("Department", back_populates="projects")
     milestones = relationship("Milestone", back_populates="project")
-    prototypes = relationship(
-        "Prototype",
-        back_populates="project",
-        foreign_keys="Prototype.project_id"
-    )
+    prototypes = relationship("Prototype", back_populates="project")
 
 
 class Milestone(Base):
@@ -117,3 +107,13 @@ class Prototype(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now())
 
     project = relationship("Project", back_populates="prototypes")
+
+
+class SearchLog(Base):
+    __tablename__ = "search_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    query_text = Column(Text)
+    queried_by = Column(String(150))
+    results_returned = Column(Integer)
+    queried_at = Column(TIMESTAMP, server_default=func.now())

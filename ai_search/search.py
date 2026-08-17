@@ -9,8 +9,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
-def keyword_search(query: str, projects_df: pd.DataFrame, dept_map: dict) -> pd.DataFrame:
-    """
+def keyword_search(query: str, projects_df: pd.DataFrame, dept_map: dict = None) -> pd.DataFrame:    """
     Fallback keyword search across title, summary, keywords, status, department.
     """
     if projects_df.empty:
@@ -106,7 +105,7 @@ Rules:
 Question: {query}"""
 
         response = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}

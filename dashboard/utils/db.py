@@ -78,27 +78,6 @@ def fetch_all_departments():
         db.close()
 
 
-def fetch_all_researchers():
-    db = get_session()
-    try:
-        researchers = db.query(Researcher).all()
-        return [
-            {
-                "id": r.id,
-                "full_name": r.full_name,
-                "designation": r.designation,
-                "department_id": r.department_id,
-                "email": r.email,
-                "phone": r.phone,
-                "specialization": r.specialization,
-                "is_active": r.is_active
-            }
-            for r in researchers
-        ]
-    finally:
-        db.close()
-
-
 def fetch_prototypes():
     db = get_session()
     try:
@@ -133,18 +112,6 @@ def add_project(data: dict):
         db.close()
 
 
-def add_researcher(data: dict):
-    db = get_session()
-    try:
-        researcher = Researcher(**data)
-        db.add(researcher)
-        db.commit()
-        db.refresh(researcher)
-        return researcher.id
-    finally:
-        db.close()
-
-
 def add_milestone(data: dict):
     db = get_session()
     try:
@@ -165,5 +132,42 @@ def add_prototype(data: dict):
         db.commit()
         db.refresh(prototype)
         return prototype.id
+    finally:
+        db.close()
+
+
+
+def fetch_all_researchers():
+    db = get_session()
+    try:
+        researchers = db.query(Researcher).all()
+        return [
+            {
+                "id": r.id,
+                "full_name": r.full_name,
+                "designation": r.designation,
+                "department_id": r.department_id,
+                "email": r.email,
+                "phone": r.phone,
+                "specialization": r.specialization,
+                "linkedin": r.linkedin,
+                "researchgate": r.researchgate,
+                "other_handle": r.other_handle,
+                "is_active": r.is_active
+            }
+            for r in researchers
+        ]
+    finally:
+        db.close()
+
+
+def add_researcher(data: dict):
+    db = get_session()
+    try:
+        researcher = Researcher(**data)
+        db.add(researcher)
+        db.commit()
+        db.refresh(researcher)
+        return researcher.id
     finally:
         db.close()

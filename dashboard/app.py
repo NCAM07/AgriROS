@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date
+from PIL import Image
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -231,9 +232,11 @@ STATUS_COLORS = {
 
 
 # ── PAGE CONFIG ──────────────────────────────────────────────────────────
+ncam_logo = Image.open("ncam-logo.png")
+
 st.set_page_config(
     page_title="NCAM Research Intelligence Platform",
-    page_icon="🌿",
+    page_icon=ncam_logo,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -390,37 +393,65 @@ researchers_df = pd.DataFrame(researchers)
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 🌿 NCAM")
+    st.image("ncam-logo.png", width=120)
     st.markdown("**Research Intelligence Platform**")
     st.markdown("---")
 
     role = st.selectbox(
         "ACCESS LEVEL",
         ["Management View", "Staff View"],
-        help="Management: Overview and analytics. Staff: Data entry and records."
     )
 
     st.markdown("---")
-    page = st.selectbox(
-    "NAVIGATE",
-        ["Overview", "Projects", "Prototype Tracker", "Researchers", "AI Search", "Data Entry"]
-        if role == "Staff View"
-        else ["Overview", "Projects", "Prototype Tracker", "Researchers", "AI Search"]
+    st.markdown(
+        "<p style='color:#A5D6A7;font-size:0.72rem;"
+        "letter-spacing:0.1em;text-transform:uppercase;'>NAVIGATE</p>",
+        unsafe_allow_html=True
     )
+
+    all_pages = [
+        "Overview",
+        "Projects",
+        "Prototype Tracker",
+        "Researchers",
+        "AI Search",
+        "Update Records",
+        "Data Entry"
+    ]
+
+    if "page" not in st.session_state:
+        st.session_state["page"] = "Overview"
+
+    for p in all_pages:
+        if p == "Data Entry" and role == "Management View":
+            continue
+        is_active = st.session_state["page"] == p
+        btn_style = (
+            "background:#2E7D32;color:white;border-radius:6px;"
+            "padding:0.4rem 0.8rem;margin-bottom:4px;"
+            "width:100%;text-align:left;font-weight:600;"
+        ) if is_active else (
+            "background:transparent;color:white;border-radius:6px;"
+            "padding:0.4rem 0.8rem;margin-bottom:4px;"
+            "width:100%;text-align:left;"
+        )
+        if st.button(p, key=f"nav_{p}", use_container_width=True):
+            st.session_state["page"] = p
+            st.rerun()
 
     st.markdown("---")
     st.markdown("**Pilot Departments**")
     st.markdown("🟢 Farm Power & Machinery")
     st.markdown("🟢 Engineering & Scientific Services")
     st.markdown("---")
-
     if using_placeholder:
-        st.warning("⚠️ Showing sample data. Enter real records via Data Entry.")
-
+        st.warning("⚠️ Showing sample data.")
     st.markdown(
         "<small style='color:#A5D6A7'>NCAM · Ilorin · 2026</small>",
         unsafe_allow_html=True
     )
+
+page = st.session_state["page"]
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -712,23 +743,62 @@ elif page == "Prototype Tracker":
 # PAGE 4 — RESEARCHERS
 # ══════════════════════════════════════════════════════════════════════════
 elif page == "Researchers":
-    st.markdown('<div class="page-title">Researchers & Staff</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Principal investigators and research officers</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-title">Researchers & Staff</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="page-sub">Research officers, engineers and staff directory</div>',
+        unsafe_allow_html=True
+    )
 
-    dept_filter = st.selectbox("Filter by Department", ["All"] + list(DEPT_MAP.values()))
+    dept_filter = st.selectbox(
+        "Filter by Department", ["All"] + list(DEPT_MAP.values())
+    )
     filtered_r = researchers_df.copy()
     if dept_filter != "All":
         dept_id = [k for k, v in DEPT_MAP.items() if v == dept_filter]
         if dept_id:
-            filtered_r = filtered_r[filtered_r["department_id"] == dept_id[0]]
+            filtered_r = filtered_r[
+                filtered_r["department_id"] == dept_id[0]
+            ]
 
     for _, r in filtered_r.iterrows():
-        with st.expander(f"👤 {r['full_name']} — {r.get('designation','N/A')}"):
+        with st.expander(
+            f"👤 {r['full_name']} — {r.get('designation', 'N/A')}"
+        ):
             c1, c2 = st.columns(2)
-            c1.markdown(f"**Department:** {DEPT_FULL.get(r['department_id'],'N/A')}")
-            c2.markdown(f"**Specialization:** {r.get('specialization','N/A')}")
-            if r.get("email"):
-                st.markdown(f"**Email:** {r['email']}")
+            c1.markdown(
+                f"**Department:** {DEPT_FULL.get(r['department_id'], 'N/A')}"
+            )
+            c2.markdown(
+                f"**Specialization:** {r.get('specialization', 'N/A')}"
+            )
+
+            st.markdown("**Contact Details**")
+            cc1, cc2 = st.columns(2)
+            cc1.markdown(
+                f"**Email:** {r.get('email', 'N/A') or 'N/A'}"
+            )
+            cc2.markdown(
+                f"**Phone:** {r.get('phone', 'N/A') or 'N/A'}"
+            )
+
+            if any([
+                r.get("linkedin"),
+                r.get("researchgate"),
+                r.get("other_handle")
+            ]):
+                st.markdown("**Professional Handles**")
+                if r.get("linkedin"):
+                    st.markdown(f"🔗 LinkedIn: {r['linkedin']}")
+                if r.get("researchgate"):
+                    st.markdown(f"🔬 ResearchGate: {r['researchgate']}")
+                if r.get("other_handle"):
+                    st.markdown(f"🌐 Other: {r['other_handle']}")
+
+            status = "Active" if r.get("is_active") else "Inactive"
+            st.markdown(f"**Status:** {status}")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -746,7 +816,7 @@ elif page == "Data Entry":
     ])
 
     # ── NEW PROJECT ──
-   with tab1:
+    with tab1:
         st.markdown(
             '<div class="section-header">Register a New Project</div>',
             unsafe_allow_html=True
@@ -828,7 +898,7 @@ elif page == "Data Entry":
                             "objectives": objectives or None,
                             "summary": summary_text or None,
                             "keywords": keywords or None,
-                            "machine_built": machine_built == "Yes"
+                            "machine_built": machine_built == "Yes",
                         })
                         st.success("✅ Project saved successfully.")
                     except Exception as e:
@@ -844,6 +914,11 @@ elif page == "Data Entry":
             dept_id_r = dept_options[dept_selected_r]
             email = st.text_input("Email Address")
             phone = st.text_input("Phone Number")
+            st.markdown("**Professional Handles**")
+            h1, h2, h3 = st.columns(3)
+            linkedin = h1.text_input("LinkedIn URL")
+            researchgate = h2.text_input("ResearchGate URL")
+            other_handle = h3.text_input("Other Handle")
             specialization = st.text_input("Area of Specialization")
 
             submitted_r = st.form_submit_button("Save Researcher")
@@ -858,6 +933,9 @@ elif page == "Data Entry":
                             "department_id": dept_id_r,
                             "email": email or None,
                             "phone": phone or None,
+                            "linkedin": linkedin or None,
+                            "researchgate": researchgate or None,
+                            "other_handle": other_handle or None,
                             "specialization": specialization or None,
                             "is_active": True
                         })
@@ -948,6 +1026,378 @@ elif page == "Data Entry":
                         st.error(f"Error saving prototype: {e}")
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# PAGE — UPDATE RECORDS
+# ══════════════════════════════════════════════════════════════════════════
+elif page == "Update Records":
+    st.markdown(
+        '<div class="page-title">Update Records</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="page-sub">'
+        'Search and update existing projects, researchers, and prototypes.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    update_tab1, update_tab2, update_tab3 = st.tabs([
+        "✏️ Update Project",
+        "✏️ Update Researcher",
+        "✏️ Update Prototype"
+    ])
+
+    # ── UPDATE PROJECT ────────────────────────────────────────────────
+    with update_tab1:
+        project_options_u = {
+            f"[{p['id']}] {p['title'][:60]}": p['id']
+            for p in projects
+        }
+        selected_u = st.selectbox(
+            "Select Project to Update",
+            list(project_options_u.keys())
+        )
+        project_id_u = project_options_u[selected_u]
+        existing = next(
+            (p for p in projects if p["id"] == project_id_u), None
+        )
+
+        if existing:
+            with st.form("update_project_form"):
+                title_u = st.text_input(
+                    "Project Title", value=existing.get("title", "")
+                )
+                dept_options_u = {v: k for k, v in DEPT_FULL.items()}
+                current_dept = DEPT_FULL.get(
+                    existing.get("department_id"), list(DEPT_FULL.values())[0]
+                )
+                dept_selected_u = st.selectbox(
+                    "Department",
+                    list(DEPT_FULL.values()),
+                    index=list(DEPT_FULL.values()).index(current_dept)
+                )
+                dept_id_u = dept_options_u[dept_selected_u]
+
+                status_options = [
+                    "Ongoing", "Completed", "Abandoned",
+                    "Pending Evaluation", "Behind Schedule", "Commercialized"
+                ]
+                current_status = existing.get("status", "Ongoing")
+                status_u = st.selectbox(
+                    "Status",
+                    status_options,
+                    index=status_options.index(current_status)
+                    if current_status in status_options else 0
+                )
+
+                st.markdown("**Principal Supervisor**")
+                us1, us2 = st.columns(2)
+                sup_name_u = us1.text_input(
+                    "Supervisor Name",
+                    value=existing.get("supervisor_name", "") or ""
+                )
+                sup_desig_u = us2.text_input(
+                    "Supervisor Designation",
+                    value=existing.get("supervisor_designation", "") or ""
+                )
+                us3, us4 = st.columns(2)
+                sup_email_u = us3.text_input(
+                    "Supervisor Email",
+                    value=existing.get("supervisor_email", "") or ""
+                )
+                sup_phone_u = us4.text_input(
+                    "Supervisor Phone",
+                    value=existing.get("supervisor_phone", "") or ""
+                )
+
+                st.markdown("**Lead Researcher**")
+                ul1, ul2 = st.columns(2)
+                lead_name_u = ul1.text_input(
+                    "Lead Researcher Name",
+                    value=existing.get("lead_researcher_name", "") or ""
+                )
+                lead_desig_u = ul2.text_input(
+                    "Lead Researcher Designation",
+                    value=existing.get("lead_researcher_designation", "") or ""
+                )
+
+                st.markdown("**Timeline**")
+                ud1, ud2, ud3 = st.columns(3)
+                start_u = ud1.date_input(
+                    "Start Date",
+                    value=existing.get("start_date") or date.today()
+                )
+                end_u = ud2.date_input(
+                    "Expected End Date",
+                    value=existing.get("expected_end_date") or date.today()
+                )
+                actual_u = ud3.date_input(
+                    "Actual End Date",
+                    value=existing.get("actual_end_date") or None
+                )
+
+                st.markdown("**Budget**")
+                ub1, ub2 = st.columns(2)
+                budget_alloc_u = ub1.number_input(
+                    "Budget Allocated (₦)",
+                    value=float(existing.get("budget_allocated") or 0),
+                    step=10000.0
+                )
+                budget_util_u = ub2.number_input(
+                    "Budget Utilized (₦)",
+                    value=float(existing.get("budget_utilized") or 0),
+                    step=10000.0
+                )
+
+                funding_u = st.text_input(
+                    "Funding Source",
+                    value=existing.get("funding_source", "") or ""
+                )
+                objectives_u = st.text_area(
+                    "Objectives",
+                    value=existing.get("objectives", "") or ""
+                )
+                summary_u = st.text_area(
+                    "Summary",
+                    value=existing.get("summary", "") or ""
+                )
+                keywords_u = st.text_input(
+                    "Keywords",
+                    value=existing.get("keywords", "") or ""
+                )
+                machine_u = st.radio(
+                    "Machine Built?",
+                    ["No", "Yes"],
+                    index=1 if existing.get("machine_built") else 0,
+                    horizontal=True
+                )
+
+                save_u = st.form_submit_button("Save Changes")
+                if save_u:
+                    try:
+                        from database import SessionLocal
+                        from models.models import Project as ProjectModel
+                        db = SessionLocal()
+                        proj = db.query(ProjectModel).filter(
+                            ProjectModel.id == project_id_u
+                        ).first()
+                        if proj:
+                            proj.title = title_u
+                            proj.department_id = dept_id_u
+                            proj.status = status_u
+                            proj.supervisor_name = sup_name_u or None
+                            proj.supervisor_designation = sup_desig_u or None
+                            proj.supervisor_email = sup_email_u or None
+                            proj.supervisor_phone = sup_phone_u or None
+                            proj.lead_researcher_name = lead_name_u or None
+                            proj.lead_researcher_designation = lead_desig_u or None
+                            proj.start_date = start_u
+                            proj.expected_end_date = end_u
+                            proj.actual_end_date = actual_u
+                            proj.budget_allocated = budget_alloc_u or None
+                            proj.budget_utilized = budget_util_u or None
+                            proj.funding_source = funding_u or None
+                            proj.objectives = objectives_u or None
+                            proj.summary = summary_u or None
+                            proj.keywords = keywords_u or None
+                            proj.machine_built = machine_u == "Yes"
+                            db.commit()
+                            st.success("✅ Project updated successfully.")
+                        db.close()
+                    except Exception as e:
+                        st.error(f"Error updating project: {e}")
+
+    # ── UPDATE RESEARCHER ─────────────────────────────────────────────
+    with update_tab2:
+        researcher_options_u = {
+            f"[{r['id']}] {r['full_name']}": r['id']
+            for r in researchers
+        }
+        selected_ru = st.selectbox(
+            "Select Researcher to Update",
+            list(researcher_options_u.keys())
+        )
+        researcher_id_u = researcher_options_u[selected_ru]
+        existing_r = next(
+            (r for r in researchers if r["id"] == researcher_id_u), None
+        )
+
+        if existing_r:
+            with st.form("update_researcher_form"):
+                name_ru = st.text_input(
+                    "Full Name",
+                    value=existing_r.get("full_name", "")
+                )
+                desig_ru = st.text_input(
+                    "Designation",
+                    value=existing_r.get("designation", "") or ""
+                )
+                dept_r_u = st.selectbox(
+                    "Department",
+                    list(DEPT_FULL.values()),
+                    index=max(
+                        0,
+                        list(DEPT_FULL.keys()).index(
+                            existing_r.get("department_id", 1)
+                        )
+                        if existing_r.get("department_id") in DEPT_FULL
+                        else 0
+                    )
+                )
+                dept_id_ru = {v: k for k, v in DEPT_FULL.items()}[dept_r_u]
+                spec_ru = st.text_input(
+                    "Specialization",
+                    value=existing_r.get("specialization", "") or ""
+                )
+                rc1, rc2 = st.columns(2)
+                email_ru = rc1.text_input(
+                    "Email",
+                    value=existing_r.get("email", "") or ""
+                )
+                phone_ru = rc2.text_input(
+                    "Phone",
+                    value=existing_r.get("phone", "") or ""
+                )
+                rh1, rh2, rh3 = st.columns(3)
+                linkedin_ru = rh1.text_input(
+                    "LinkedIn",
+                    value=existing_r.get("linkedin", "") or ""
+                )
+                rg_ru = rh2.text_input(
+                    "ResearchGate",
+                    value=existing_r.get("researchgate", "") or ""
+                )
+                other_ru = rh3.text_input(
+                    "Other Handle",
+                    value=existing_r.get("other_handle", "") or ""
+                )
+                active_ru = st.radio(
+                    "Status",
+                    ["Active", "Inactive"],
+                    index=0 if existing_r.get("is_active") else 1,
+                    horizontal=True
+                )
+
+                save_ru = st.form_submit_button("Save Changes")
+                if save_ru:
+                    try:
+                        from database import SessionLocal
+                        from models.models import Researcher as ResearcherModel
+                        db = SessionLocal()
+                        researcher = db.query(ResearcherModel).filter(
+                            ResearcherModel.id == researcher_id_u
+                        ).first()
+                        if researcher:
+                            researcher.full_name = name_ru
+                            researcher.designation = desig_ru or None
+                            researcher.department_id = dept_id_ru
+                            researcher.specialization = spec_ru or None
+                            researcher.email = email_ru or None
+                            researcher.phone = phone_ru or None
+                            researcher.linkedin = linkedin_ru or None
+                            researcher.researchgate = rg_ru or None
+                            researcher.other_handle = other_ru or None
+                            researcher.is_active = active_ru == "Active"
+                            db.commit()
+                            st.success("✅ Researcher updated successfully.")
+                        db.close()
+                    except Exception as e:
+                        st.error(f"Error updating researcher: {e}")
+
+    # ── UPDATE PROTOTYPE ──────────────────────────────────────────────
+    with update_tab3:
+        if prototypes:
+            proto_options_u = {
+                f"[{p['id']}] {p['name']}": p['id']
+                for p in prototypes
+            }
+            selected_pu = st.selectbox(
+                "Select Prototype to Update",
+                list(proto_options_u.keys())
+            )
+            proto_id_u = proto_options_u[selected_pu]
+            existing_p = next(
+                (p for p in prototypes if p["id"] == proto_id_u), None
+            )
+
+            if existing_p:
+                with st.form("update_prototype_form"):
+                    pname_u = st.text_input(
+                        "Prototype Name",
+                        value=existing_p.get("name", "")
+                    )
+                    pdesc_u = st.text_area(
+                        "Description",
+                        value=existing_p.get("description", "") or ""
+                    )
+                    stage_options = [
+                        "Design", "Fabrication", "Testing",
+                        "Modification", "Certification",
+                        "Commercialization", "Deployed"
+                    ]
+                    current_stage = existing_p.get("development_stage", "Design")
+                    pstage_u = st.selectbox(
+                        "Development Stage",
+                        stage_options,
+                        index=stage_options.index(current_stage)
+                        if current_stage in stage_options else 0
+                    )
+                    pp1, pp2 = st.columns(2)
+                    units_prod_u = pp1.number_input(
+                        "Units Produced",
+                        value=int(existing_p.get("units_produced") or 0),
+                        min_value=0
+                    )
+                    units_dist_u = pp2.number_input(
+                        "Units Distributed",
+                        value=int(existing_p.get("units_distributed") or 0),
+                        min_value=0
+                    )
+                    crop_u = st.text_input(
+                        "Target Crop(s)",
+                        value=existing_p.get("target_crop", "") or ""
+                    )
+                    region_u = st.text_input(
+                        "Target Region",
+                        value=existing_p.get("target_region", "") or ""
+                    )
+                    notes_u = st.text_area(
+                        "Notes",
+                        value=existing_p.get("notes", "") or ""
+                    )
+
+                    save_pu = st.form_submit_button("Save Changes")
+                    if save_pu:
+                        try:
+                            from database import SessionLocal
+                            from models.models import Prototype as ProtoModel
+                            db = SessionLocal()
+                            proto = db.query(ProtoModel).filter(
+                                ProtoModel.id == proto_id_u
+                            ).first()
+                            if proto:
+                                proto.name = pname_u
+                                proto.description = pdesc_u or None
+                                proto.development_stage = pstage_u
+                                proto.units_produced = units_prod_u
+                                proto.units_distributed = units_dist_u
+                                proto.target_crop = crop_u or None
+                                proto.target_region = region_u or None
+                                proto.notes = notes_u or None
+                                db.commit()
+                                st.success(
+                                    "✅ Prototype updated successfully."
+                                )
+                            db.close()
+                        except Exception as e:
+                            st.error(f"Error updating prototype: {e}")
+        else:
+            st.info(
+                "No prototypes in the database yet. "
+                "Add one through Data Entry first."
+            )
+
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # PAGE 6 — AI SEARCH
@@ -1031,15 +1481,38 @@ elif page == "AI Search":
                 projects_df["id"].isin(result["matched_ids"])
             ].copy()
             matched_df["Department"] = matched_df["department_id"].map(DEPT_FULL)
-            display_cols = matched_df[[
-                "title", "Department", "status",
-                "start_date", "budget_allocated"
-            ]].copy()
-            display_cols.columns = [
-                "Title", "Department", "Status",
-                "Start Date", "Budget (₦)"
-            ]
-            st.dataframe(display_cols, use_container_width=True, hide_index=True)
+            matched_df["Department"] = matched_df["department_id"].map(DEPT_FULL)
+            for _, proj in matched_df.iterrows():
+                with st.expander(
+                    f"📋 {proj['title']} — {proj.get('status', 'N/A')}"
+                ):
+                    ca, cb, cc = st.columns(3)
+                    ca.markdown(
+                        f"**Department:** {proj.get('Department', 'N/A')}"
+                    )
+                    cb.markdown(
+                        f"**Status:** {proj.get('status', 'N/A')}"
+                    )
+                    cc.markdown(
+                        f"**Research Lead:** "
+                        f"{proj.get('lead_researcher_name', 'N/A')}"
+                    )
+                    cd, ce, cf = st.columns(3)
+                    cd.markdown(
+                        f"**Supervisor:** "
+                        f"{proj.get('supervisor_name', 'N/A')}"
+                    )
+                    ce.markdown(
+                        f"**Start Date:** {proj.get('start_date', 'N/A')}"
+                    )
+                    cf.markdown(
+                        f"**Expected End:** "
+                        f"{proj.get('expected_end_date', 'N/A')}"
+                    )
+                    if proj.get("summary"):
+                        st.markdown(f"**Summary:** {proj['summary']}")
+                    if proj.get("keywords"):
+                        st.markdown(f"**Keywords:** `{proj['keywords']}`")
         else:
             st.info("No matching projects found for this query.")
 
@@ -1060,16 +1533,38 @@ elif page == "AI Search":
         if kw_results.empty:
             st.info(f"No projects found matching '{query}'.")
         else:
-            kw_results["Department"] = kw_results["department_id"].map(DEPT_FULL)
-            display_kw = kw_results[[
-                "title", "Department", "status",
-                "start_date", "budget_allocated"
-            ]].copy()
-            display_kw.columns = [
-                "Title", "Department", "Status",
-                "Start Date", "Budget (₦)"
-            ]
-            st.dataframe(display_kw, use_container_width=True, hide_index=True)
+            matched_df["Department"] = matched_df["department_id"].map(DEPT_FULL)
+            for _, proj in matched_df.iterrows():
+                with st.expander(
+                    f"📋 {proj['title']} — {proj.get('status', 'N/A')}"
+                ):
+                    ca, cb, cc = st.columns(3)
+                    ca.markdown(
+                        f"**Department:** {proj.get('Department', 'N/A')}"
+                    )
+                    cb.markdown(
+                        f"**Status:** {proj.get('status', 'N/A')}"
+                    )
+                    cc.markdown(
+                        f"**Research Lead:** "
+                        f"{proj.get('lead_researcher_name', 'N/A')}"
+                    )
+                    cd, ce, cf = st.columns(3)
+                    cd.markdown(
+                        f"**Supervisor:** "
+                        f"{proj.get('supervisor_name', 'N/A')}"
+                    )
+                    ce.markdown(
+                        f"**Start Date:** {proj.get('start_date', 'N/A')}"
+                    )
+                    cf.markdown(
+                        f"**Expected End:** "
+                        f"{proj.get('expected_end_date', 'N/A')}"
+                    )
+                    if proj.get("summary"):
+                        st.markdown(f"**Summary:** {proj['summary']}")
+                    if proj.get("keywords"):
+                        st.markdown(f"**Keywords:** `{proj['keywords']}`")
 
     # ── Search Log ──
     if query and (search_ai or search_kw):
