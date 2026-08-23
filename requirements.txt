@@ -11,3 +11,6 @@ requests
 anthropic
 groq
 Pillow
+supabase
+PyMuPDF
+python-docx

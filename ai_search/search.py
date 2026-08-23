@@ -9,158 +9,262 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
-def keyword_search(query: str, projects_df: pd.DataFrame, dept_map: dict = None) -> pd.DataFrame:    """
-    Fallback keyword search across title, summary, keywords, status, department.
+def keyword_search(
+    query: str,
+    data: dict,
+    dept_map: dict = None
+) -> dict:
     """
-    if projects_df.empty:
-        return pd.DataFrame()
-
-    query_lower = query.lower()
-    df = projects_df.copy()
-    df["dept_name"] = df["department_id"].map(dept_map).fillna("").str.lower()
-
-    mask = (
-        df["title"].str.lower().str.contains(query_lower, na=False) |
-        df.get("summary", pd.Series([""] * len(df))).str.lower().str.contains(query_lower, na=False) |
-        df.get("keywords", pd.Series([""] * len(df))).str.lower().str.contains(query_lower, na=False) |
-        df.get("status", pd.Series([""] * len(df))).str.lower().str.contains(query_lower, na=False) |
-        df["dept_name"].str.contains(query_lower, na=False) |
-        df.get("funding_source", pd.Series([""] * len(df))).str.lower().str.contains(query_lower, na=False)
-    )
-
-    return df[mask].drop(columns=["dept_name"], errors="ignore")
-
-
-def build_context(projects_df: pd.DataFrame, dept_map: dict, dept_full: dict) -> str:
+    Keyword search across all record types.
+    data = {
+        "projects": projects_df,
+        "research": research_df,
+        "researchers": researchers_df,
+        "prototypes": prototypes_df
+    }
+    Returns matched records grouped by type.
     """
-    Converts the projects dataframe into a clean text context for the LLM.
-    Limits to 60 projects to stay within token limits.
-    """
-    if projects_df.empty:
-        return "No project data is currently available in the database."
+    q = query.lower()
+    results = {}
 
-    df = projects_df.copy()
-    df["department"] = df["department_id"].map(dept_full).fillna("Unknown")
-    df = df.head(60)
-
-    lines = []
-    for _, row in df.iterrows():
-        line = (
-            f"Project ID {row['id']}: \"{row['title']}\" | "
-            f"Department: {row['department']} | "
-            f"Status: {row.get('status', 'N/A')} | "
-            f"Start: {row.get('start_date', 'N/A')} | "
-            f"Expected End: {row.get('expected_end_date', 'N/A')} | "
-            f"Budget Allocated: ₦{row.get('budget_allocated', 'N/A'):,} | "
-            f"Budget Utilized: ₦{row.get('budget_utilized', 'N/A'):,} | "
-            f"Funding: {row.get('funding_source', 'N/A')} | "
-            f"Keywords: {row.get('keywords', 'N/A')}"
+    # Projects
+    if "projects" in data and not data["projects"].empty:
+        df = data["projects"].copy()
+        mask = (
+            df.get("title", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("keywords", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("status", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("funding_source", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("summary", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("lead_researcher_name", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("supervisor_name", pd.Series()).str.lower().str.contains(q, na=False)
         )
-        lines.append(line)
+        results["projects"] = df[mask].to_dict("records")
 
-    return "\n".join(lines)
+    # Research
+    if "research" in data and not data["research"].empty:
+        df = data["research"].copy()
+        mask = (
+            df.get("title", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("keywords", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("status", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("summary", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("findings", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("lead_researcher_name", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("research_type", pd.Series()).str.lower().str.contains(q, na=False)
+        )
+        results["research"] = df[mask].to_dict("records")
+
+    # Researchers
+    if "researchers" in data and not data["researchers"].empty:
+        df = data["researchers"].copy()
+        mask = (
+            df.get("full_name", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("specialization", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("designation", pd.Series()).str.lower().str.contains(q, na=False)
+        )
+        results["researchers"] = df[mask].to_dict("records")
+
+    # Prototypes
+    if "prototypes" in data and not data["prototypes"].empty:
+        df = data["prototypes"].copy()
+        mask = (
+            df.get("name", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("development_stage", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("target_crop", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("target_region", pd.Series()).str.lower().str.contains(q, na=False) |
+            df.get("notes", pd.Series()).str.lower().str.contains(q, na=False)
+        )
+        results["prototypes"] = df[mask].to_dict("records")
+
+    return results
+
+
+def build_full_context(data: dict, dept_full: dict) -> str:
+    """
+    Builds a text context from all record types
+    for the AI to reason over.
+    """
+    sections = []
+
+    # Projects
+    if "projects" in data and not data["projects"].empty:
+        df = data["projects"].copy().head(30)
+        df["dept"] = df["department_id"].map(dept_full).fillna("Unknown")
+        lines = ["=== PROJECTS ==="]
+        for _, r in df.iterrows():
+            budget = (
+                f"₦{r['budget_allocated']:,}"
+                if r.get("budget_allocated") is not None
+                else "N/A"
+            )
+            lines.append(
+                f"[Project ID {r['id']}] {r['title']} | "
+                f"Dept: {r['dept']} | Status: {r.get('status','N/A')} | "
+                f"Lead: {r.get('lead_researcher_name','N/A')} | "
+                f"Supervisor: {r.get('supervisor_name','N/A')} | "
+                f"Budget: {budget} | "
+                f"Start: {r.get('start_date','N/A')} | "
+                f"End: {r.get('expected_end_date','N/A')} | "
+                f"Machine Built: {r.get('machine_built', False)} | "
+                f"Keywords: {r.get('keywords','N/A')}"
+            )
+        sections.append("\n".join(lines))
+
+    # Research
+    if "research" in data and not data["research"].empty:
+        df = data["research"].copy().head(30)
+        df["dept"] = df["department_id"].map(dept_full).fillna("Unknown")
+        lines = ["=== RESEARCH ==="]
+        for _, r in df.iterrows():
+            lines.append(
+                f"[Research ID {r['id']}] {r['title']} | "
+                f"Dept: {r['dept']} | "
+                f"Type: {r.get('research_type','N/A')} | "
+                f"Status: {r.get('status','N/A')} | "
+                f"Lead: {r.get('lead_researcher_name','N/A')} | "
+                f"Supervisor: {r.get('supervisor_name','N/A')} | "
+                f"Keywords: {r.get('keywords','N/A')} | "
+                f"Journal: {r.get('journal_name','N/A')} | "
+                f"Machine Built: {r.get('machine_built',False)} | "
+                f"Summary: {str(r.get('summary','N/A'))[:200]}"
+            )
+        sections.append("\n".join(lines))
+
+    # Researchers
+    if "researchers" in data and not data["researchers"].empty:
+        df = data["researchers"].copy()
+        df["dept"] = df["department_id"].map(dept_full).fillna("Unknown")
+        lines = ["=== RESEARCHERS ==="]
+        for _, r in df.iterrows():
+            lines.append(
+                f"[Researcher ID {r['id']}] {r['full_name']} | "
+                f"Dept: {r['dept']} | "
+                f"Designation: {r.get('designation','N/A')} | "
+                f"Specialization: {r.get('specialization','N/A')} | "
+                f"Active: {r.get('is_active', True)}"
+            )
+        sections.append("\n".join(lines))
+
+    # Prototypes
+    if "prototypes" in data and not data["prototypes"].empty:
+        df = data["prototypes"].copy()
+        lines = ["=== PROTOTYPES ==="]
+        for _, r in df.iterrows():
+            lines.append(
+                f"[Prototype ID {r['id']}] {r['name']} | "
+                f"Stage: {r.get('development_stage','N/A')} | "
+                f"Crop: {r.get('target_crop','N/A')} | "
+                f"Region: {r.get('target_region','N/A')} | "
+                f"Units Produced: {r.get('units_produced',0)} | "
+                f"Units Distributed: {r.get('units_distributed',0)}"
+            )
+        sections.append("\n".join(lines))
+
+    return "\n\n".join(sections)
 
 
 def ai_search(
     query: str,
-    projects_df: pd.DataFrame,
+    data: dict,
     dept_map: dict,
     dept_full: dict
 ) -> dict:
     """
-    Main search function.
-    Returns:
-        {
-            "mode": "ai" | "keyword" | "fallback",
-            "answer": str,
-            "matched_ids": list[int],
-            "error": str | None
-        }
+    AI search across all record types.
+    Returns answer, matched IDs per type, and mode.
     """
-    # ── GROQ AI SEARCH ────────────────────────────────────────────────────
     try:
-        context = build_context(projects_df, dept_map, dept_full)
+        context = build_full_context(data, dept_full)
 
         system_prompt = """You are a research intelligence assistant for the National Centre for Agricultural Mechanization (NCAM) in Nigeria.
 
-You are given a list of research projects from NCAM's database and a question from a user — either a department head, the Executive Director, or a staff member.
+You have access to NCAM's complete database including Projects, Research records, Researchers, and Prototypes.
 
-Your job is to:
-1. Answer the question accurately using only the project data provided.
-2. Return a clear, direct answer in plain English.
-3. List the relevant Project IDs at the end of your response in this exact format:
-   MATCHED_IDS: [1, 4, 7]
+Answer the user's question accurately using only the data provided. Be specific and thorough — include names, IDs, statuses, and relevant details in your answer.
+
+At the end of your response, list matched record IDs in this exact format:
+MATCHED_PROJECTS: [1, 2]
+MATCHED_RESEARCH: [3]
+MATCHED_RESEARCHERS: [1]
+MATCHED_PROTOTYPES: [2]
 
 Rules:
-- Only use information from the project data provided. Do not invent data.
-- If no projects match the question, say so clearly and return MATCHED_IDS: []
-- Keep answers concise — 3 to 6 sentences maximum.
-- Always end with the MATCHED_IDS line, even if empty.
-- Amounts are in Nigerian Naira (₦).
-"""
-
-        user_message = f"""Project Database:
-{context}
-
-Question: {query}"""
+- Only use information from the data provided.
+- If nothing matches, say so clearly and return empty lists.
+- Keep answers clear and well-structured.
+- Always include all four MATCHED lines even if empty."""
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-20b",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
+                {
+                    "role": "user",
+                    "content": f"Database:\n{context}\n\nQuestion: {query}"
+                }
             ],
             temperature=0.1,
-            max_tokens=600
+            max_tokens=800
         )
 
-        raw_answer = response.choices[0].message.content.strip()
+        raw = response.choices[0].message.content.strip()
 
-        # ── Extract matched IDs ──
-        matched_ids = []
-        if "MATCHED_IDS:" in raw_answer:
-            parts = raw_answer.split("MATCHED_IDS:")
-            answer_text = parts[0].strip()
-            id_part = parts[1].strip()
-            try:
-                id_part_clean = id_part.replace("[", "").replace("]", "").strip()
-                if id_part_clean:
-                    matched_ids = [
-                        int(x.strip())
-                        for x in id_part_clean.split(",")
-                        if x.strip().isdigit()
-                    ]
-            except Exception:
-                matched_ids = []
-        else:
-            answer_text = raw_answer
+        # Parse answer and matched IDs
+        answer = raw
+        matched = {
+            "projects": [],
+            "research": [],
+            "researchers": [],
+            "prototypes": []
+        }
+
+        for line in raw.split("\n"):
+            line = line.strip()
+            if line.startswith("MATCHED_PROJECTS:"):
+                answer = raw[:raw.find("MATCHED_PROJECTS:")].strip()
+                matched["projects"] = _parse_ids(line)
+            elif line.startswith("MATCHED_RESEARCH:"):
+                matched["research"] = _parse_ids(line)
+            elif line.startswith("MATCHED_RESEARCHERS:"):
+                matched["researchers"] = _parse_ids(line)
+            elif line.startswith("MATCHED_PROTOTYPES:"):
+                matched["prototypes"] = _parse_ids(line)
 
         return {
             "mode": "ai",
-            "answer": answer_text,
-            "matched_ids": matched_ids,
+            "answer": answer,
+            "matched": matched,
             "error": None
         }
 
     except Exception as e:
-        # ── FALLBACK TO KEYWORD SEARCH ────────────────────────────────────
-        keyword_results = keyword_search(query, projects_df, dept_map)
-        matched_ids = keyword_results["id"].tolist() if not keyword_results.empty else []
-
-        if matched_ids:
-            answer = (
-                f"AI search is temporarily unavailable. "
-                f"Keyword search found {len(matched_ids)} project(s) matching '{query}'."
-            )
-        else:
-            answer = (
-                f"AI search is temporarily unavailable and no keyword matches "
-                f"were found for '{query}'. Try different search terms."
-            )
-
+        kw_results = keyword_search(query, data, dept_map)
+        total = sum(len(v) for v in kw_results.values())
         return {
             "mode": "fallback",
-            "answer": answer,
-            "matched_ids": matched_ids,
+            "answer": (
+                f"AI search unavailable. "
+                f"Keyword search found {total} result(s) for '{query}'."
+            ),
+            "matched": {
+                k: [r["id"] for r in v]
+                for k, v in kw_results.items()
+            },
             "error": str(e)
         }
+
+
+def _parse_ids(line: str) -> list:
+    try:
+        part = line.split(":", 1)[1].strip()
+        part = part.replace("[", "").replace("]", "").strip()
+        if not part:
+            return []
+        return [
+            int(x.strip())
+            for x in part.split(",")
+            if x.strip().isdigit()
+        ]
+    except Exception:
+        return []

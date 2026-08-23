@@ -3,17 +3,37 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date
-from PIL import Image
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from ai_search.search import ai_search, keyword_search
+from PIL import Image
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+)
+
 from dashboard.utils.db import (
     fetch_summary, fetch_all_projects, fetch_all_departments,
     fetch_all_researchers, fetch_prototypes,
-    add_project, add_researcher, add_milestone, add_prototype
+    fetch_all_research, fetch_project_documents,
+    add_project, add_researcher, add_milestone,
+    add_prototype, add_research,
+    save_document_record, save_staging,
+    fetch_pending_staging, confirm_staging, reject_staging
+)
+from dashboard.utils.storage import (
+    upload_document, get_document_url
+)
+from ai_search.search import ai_search, keyword_search
+from ai_search.extractor import extract_research_details
+
+
+# ── PAGE CONFIG ──────────────────────────────────────────────────────
+ncam_logo = Image.open("ncam-logo.png")
+st.set_page_config(
+    page_title="NCAM Research Intelligence Platform",
+    page_icon=ncam_logo,
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # ── PLACEHOLDER DATA ──────────────────────────────────────────────────────
@@ -232,8 +252,6 @@ STATUS_COLORS = {
 
 
 # ── PAGE CONFIG ──────────────────────────────────────────────────────────
-ncam_logo = Image.open("ncam-logo.png")
-
 st.set_page_config(
     page_title="NCAM Research Intelligence Platform",
     page_icon=ncam_logo,
@@ -353,42 +371,45 @@ st.markdown("""
 
 # ── LOAD DATA ─────────────────────────────────────────────────────────────
 def load_data():
+    """Load every dataset independently so one failing table
+    (or an empty database) never blanks the whole dashboard."""
+    errors = []
+
+    def _safe(fn, default):
+        try:
+            return fn() or default
+        except Exception as e:
+            errors.append(f"{fn.__name__}: {e}")
+            return default
+
+    projects = _safe(fetch_all_projects, [])
+    research = _safe(fetch_all_research, [])
+    prototypes = _safe(fetch_prototypes, [])
+    researchers = _safe(fetch_all_researchers, [])
+
     try:
-        projects = fetch_all_projects()
-        if not projects:
-            projects = PLACEHOLDER_PROJECTS
-            using_placeholder = True
-        else:
-            using_placeholder = False
-        prototypes = fetch_prototypes() or PLACEHOLDER_PROTOTYPES
-        researchers = fetch_all_researchers() or PLACEHOLDER_RESEARCHERS
         summary = fetch_summary()
-        if summary["total"] == 0:
-            summary = {
-                "total": len(PLACEHOLDER_PROJECTS),
-                "ongoing": sum(1 for p in PLACEHOLDER_PROJECTS if p["status"] == "Ongoing"),
-                "completed": sum(1 for p in PLACEHOLDER_PROJECTS if p["status"] == "Completed"),
-                "commercialized": sum(1 for p in PLACEHOLDER_PROJECTS if p["status"] == "Commercialized"),
-                "pending": sum(1 for p in PLACEHOLDER_PROJECTS if p["status"] == "Pending Evaluation"),
-                "behind": sum(1 for p in PLACEHOLDER_PROJECTS if p["status"] == "Behind Schedule"),
-                "abandoned": sum(1 for p in PLACEHOLDER_PROJECTS if p["status"] == "Abandoned"),
-            }
-            using_placeholder = True
-        return projects, prototypes, researchers, summary, using_placeholder
     except Exception as e:
-        st.error(f"Database connection issue: {e}")
-        return (PLACEHOLDER_PROJECTS, PLACEHOLDER_PROTOTYPES,
-                PLACEHOLDER_RESEARCHERS,
-                {
-                    "total": 8, "ongoing": 2, "completed": 2,
-                    "commercialized": 1, "pending": 1, "behind": 1, "abandoned": 1
-                }, True)
+        errors.append(f"fetch_summary: {e}")
+        summary = {}
+
+    if errors:
+        st.warning("Some records could not be loaded — " + "; ".join(errors))
+
+    using_placeholder = (len(projects) == 0 and len(research) == 0)
+    return (
+        projects, research, prototypes,
+        researchers, summary, using_placeholder
+    )
 
 
-projects, prototypes, researchers, summary, using_placeholder = load_data()
-projects_df = pd.DataFrame(projects)
-prototypes_df = pd.DataFrame(prototypes)
-researchers_df = pd.DataFrame(researchers)
+projects, research, prototypes, researchers, summary, using_placeholder = (
+    load_data()
+)
+projects_df = pd.DataFrame(projects) if projects else pd.DataFrame()
+research_df = pd.DataFrame(research) if research else pd.DataFrame()
+prototypes_df = pd.DataFrame(prototypes) if prototypes else pd.DataFrame()
+researchers_df = pd.DataFrame(researchers) if researchers else pd.DataFrame()
 
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────
@@ -412,9 +433,11 @@ with st.sidebar:
     all_pages = [
         "Overview",
         "Projects",
+        "Research",
         "Prototype Tracker",
         "Researchers",
         "AI Search",
+        "Pending Approvals",
         "Update Records",
         "Data Entry"
     ]
@@ -463,15 +486,22 @@ if page == "Overview":
 
     # ── KPI METRICS ──
     c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-    c1.metric("Total Projects", summary["total"])
-    c2.metric("Ongoing", summary["ongoing"])
-    c3.metric("Completed", summary["completed"])
-    c4.metric("Commercialized", summary["commercialized"])
-    c5.metric("Pending Evaluation", summary["pending"])
-    c6.metric("Behind Schedule", summary["behind"])
-    c7.metric("Abandoned", summary["abandoned"])
+    c1.metric("Total Projects", summary.get("total_projects", 0))
+    c2.metric("Ongoing", summary.get("ongoing_projects", 0))
+    c3.metric("Completed", summary.get("completed_projects", 0))
+    c4.metric("Commercialized", summary.get("commercialized", 0))
+    c5.metric("Pending Evaluation", summary.get("pending", 0))
+    c6.metric("Behind Schedule", summary.get("behind", 0))
+    c7.metric("Abandoned", summary.get("abandoned", 0))
 
     st.markdown("---")
+
+    if projects_df.empty:
+        st.info(
+            "No project data yet — add projects via Data Entry "
+            "to populate the charts below."
+        )
+        st.stop()
 
     col1, col2 = st.columns(2)
 
@@ -567,6 +597,10 @@ elif page == "Projects":
     st.markdown('<div class="page-title">Research Projects</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-sub">Full project register — filter by department or status</div>', unsafe_allow_html=True)
 
+    if projects_df.empty:
+        st.info("No projects in the database yet. Add one via Data Entry.")
+        st.stop()
+
     col1, col2, col3 = st.columns(3)
     with col1:
         dept_filter = st.selectbox(
@@ -657,7 +691,33 @@ elif page == "Projects":
                 st.progress(min(pct / 100, 1.0))
 
             st.markdown("---")
-
+            # Documents section
+            st.markdown("---")
+            st.markdown("**Project Documents**")
+            try:
+                proj_docs = fetch_project_documents(row["id"])
+                if not proj_docs:
+                    st.caption("No documents uploaded for this project.")
+                else:
+                    for doc in proj_docs:
+                        col_doc1, col_doc2 = st.columns([3, 1])
+                        col_doc1.markdown(
+                            f"📄 {doc['file_name']} — "
+                            f"_{doc['document_category']}_"
+                        )
+                        if col_doc2.button(
+                            "Download",
+                            key=f"proj_dl_{doc['id']}"
+                        ):
+                            try:
+                                url = get_document_url(doc["storage_path"])
+                                st.markdown(
+                                    f"[Download {doc['file_name']}]({url})"
+                                )
+                            except Exception as e:
+                                st.error(f"Could not generate link: {e}")
+            except Exception:
+                st.caption("Documents unavailable.")
             # ── Other details ──
             if row.get("funding_source"):
                 st.markdown(f"**Funding Source:** {row['funding_source']}")
@@ -673,6 +733,10 @@ elif page == "Projects":
 elif page == "Prototype Tracker":
     st.markdown('<div class="page-title">Prototype Development Pipeline</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-sub">Track every prototype from design to commercialization</div>', unsafe_allow_html=True)
+
+    if prototypes_df.empty:
+        st.info("No prototypes in the database yet. Add one via Data Entry.")
+        st.stop()
 
     STAGES = ["Design", "Fabrication", "Testing", "Modification",
               "Certification", "Commercialization", "Deployed"]
@@ -752,6 +816,10 @@ elif page == "Researchers":
         unsafe_allow_html=True
     )
 
+    if researchers_df.empty:
+        st.info("No researchers in the database yet. Add one via Data Entry.")
+        st.stop()
+
     dept_filter = st.selectbox(
         "Filter by Department", ["All"] + list(DEPT_MAP.values())
     )
@@ -808,11 +876,12 @@ elif page == "Data Entry":
     st.markdown('<div class="page-title">Data Entry</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-sub">Enter and update research records for your department</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "➕ New Project",
         "👤 New Researcher",
         "🎯 New Milestone",
-        "🔧 New Prototype"
+        "🔧 New Prototype",
+        "📄 Upload Document"
     ])
 
     # ── NEW PROJECT ──
@@ -951,7 +1020,7 @@ elif page == "Data Entry":
                 p["title"][:60]: p["id"] for p in projects
             }
             selected_project = st.selectbox("Select Project *", list(project_options.keys()))
-            project_id_m = project_options[selected_project]
+            project_id_m = project_options.get(selected_project)
 
             m_title = st.text_input("Milestone Title *")
             m_description = st.text_area("Description")
@@ -987,7 +1056,7 @@ elif page == "Data Entry":
                 list(project_options.keys()),
                 key="pproject"
             )
-            project_id_p = project_options[selected_project_p]
+            project_id_p = project_options.get(selected_project_p)
 
             p_name = st.text_input("Prototype Name *")
             p_description = st.text_area("Description")
@@ -1026,6 +1095,236 @@ elif page == "Data Entry":
                         st.error(f"Error saving prototype: {e}")
 
 
+    # ── UPLOAD DOCUMENT ───────────────────────────────────────────────────
+    with tab5:
+        st.markdown(
+            '<div class="section-header">Upload Document</div>',
+            unsafe_allow_html=True
+        )
+
+        record_type_choice = st.radio(
+            "This document belongs to *",
+            ["Project", "Research"],
+            horizontal=True
+        )
+
+        if record_type_choice == "Project":
+            link_options = {
+                f"[{p['id']}] {p['title'][:60]}": p['id']
+                for p in projects
+            } if projects else {}
+            link_label = "Select Project"
+        else:
+            link_options = {
+                f"[{r['id']}] {r['title'][:60]}": r['id']
+                for r in research
+            } if research else {}
+            link_label = "Select Research Record"
+
+        if not link_options:
+            st.info(
+                f"No {record_type_choice.lower()} records available. "
+                f"Add one via the other tabs first, then upload here."
+            )
+            st.stop()
+
+        selected_link = st.selectbox(link_label, list(link_options.keys()))
+        linked_id = link_options[selected_link]
+        project_id_doc = (
+            linked_id if record_type_choice == "Project" else None
+        )
+
+        doc_category = st.selectbox(
+            "Document Category *",
+            [
+                "Research Paper",
+                "Technical Report",
+                "Project Proposal",
+                "Design Drawing",
+                "Prototype Diagram",
+                "Testing Report",
+                "Commercialization Record",
+                "Extension Report",
+                "Scanned Document",
+                "Other"
+            ]
+        )
+
+        doc_description = st.text_area(
+            "Description",
+            placeholder="Brief description of what this document contains..."
+        )
+
+        uploaded_by = st.text_input(
+            "Uploaded By",
+            placeholder="Your name"
+        )
+
+        uploaded_file = st.file_uploader(
+            "Select File *",
+            type=[
+                "pdf", "docx", "doc", "xlsx", "xls",
+                "png", "jpg", "jpeg", "dwg", "dxf"
+            ],
+            help="Accepted: PDF, Word, Excel, Images, CAD files"
+        )
+
+        if uploaded_file is not None:
+            st.markdown(f"""
+            <div style="
+                background:#F1F8E9;
+                border-left:4px solid #4CAF50;
+                border-radius:6px;
+                padding:0.6rem 1rem;
+                font-size:0.85rem;
+                color:#1B5E20;
+            ">
+                📄 <strong>{uploaded_file.name}</strong> —
+                {round(uploaded_file.size / 1024, 1)} KB
+            </div>
+            """, unsafe_allow_html=True)
+
+
+
+        if st.button("Upload & Extract", use_container_width=True):
+            if not uploaded_file:
+                st.error("Please select a file to upload.")
+            elif not record_type_choice:
+                st.error("Please select whether this is a Project or Research document.")
+            else:
+                with st.spinner("Uploading and extracting..."):
+                    try:
+                        file_bytes = uploaded_file.read()
+
+                        # Upload to storage
+                        storage_path = upload_document(
+                            file_bytes=file_bytes,
+                            file_name=uploaded_file.name,
+                            project_id=linked_id,
+                            category=doc_category.replace(" ", "_")
+                        )
+
+                        # Save document record
+                        doc_id = save_document_record({
+                            "project_id": linked_id
+                            if record_type_choice == "Project" else None,
+                            "research_id": linked_id
+                            if record_type_choice == "Research" else None,
+                            "record_type": record_type_choice.lower(),
+                            "file_name": uploaded_file.name,
+                            "file_type": uploaded_file.type,
+                            "document_category": doc_category,
+                            "description": doc_description or None,
+                            "storage_path": storage_path,
+                            "uploaded_by": uploaded_by or None
+                        })
+
+                        st.success(f"✅ {uploaded_file.name} uploaded.")
+
+                        # Only extract for PDF and DOCX
+                        ext = uploaded_file.name.lower().split(".")[-1]
+                        if ext in ["pdf", "docx", "doc"]:
+                            st.info("🤖 Extracting research details...")
+                            extracted = extract_research_details(
+                                file_bytes, uploaded_file.name
+                            )
+
+                            if "error" in extracted:
+                                st.warning(
+                                    f"Extraction issue: {extracted['error']}. "
+                                    f"You can add this record manually."
+                                )
+                            else:
+                                save_staging({
+                                    "document_id": doc_id,
+                                    "extracted_title": extracted.get("title"),
+                                    "extracted_lead_researcher": extracted.get(
+                                        "lead_researcher"
+                                    ),
+                                    "extracted_supervisor": extracted.get(
+                                        "supervisor"
+                                    ),
+                                    "extracted_keywords": extracted.get("keywords"),
+                                    "extracted_summary": extracted.get("summary"),
+                                    "extracted_objectives": extracted.get(
+                                        "objectives"
+                                    ),
+                                    "extracted_findings": extracted.get("findings"),
+                                    "extracted_funding_source": extracted.get(
+                                        "funding_source"
+                                    ),
+                                    "extracted_journal": extracted.get("journal_name"),
+                                    "extracted_research_type": extracted.get(
+                                        "research_type"
+                                    ),
+                                    "raw_extraction": extracted.get(
+                                        "raw_extraction", ""
+                                    ),
+                                    "submitted_by": uploaded_by or None,
+                                    "status": "Pending Confirmation"
+                                })
+                                st.success(
+                                    "🤖 Extraction complete. "
+                                    "Go to **Pending Approvals** to review "
+                                    "and confirm the extracted details."
+                                )
+                        else:
+                            st.info(
+                                "File uploaded. "
+                                "AI extraction is only available for PDF and DOCX files."
+                            )
+
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+        # ── VIEW EXISTING DOCUMENTS ───────────────────────────────────────
+        st.markdown("---")
+        st.markdown(
+            '<div class="section-header">Documents for This Project</div>',
+            unsafe_allow_html=True
+        )
+
+        try:
+            existing_docs = fetch_project_documents(project_id_doc)
+            if not existing_docs:
+                st.info("No documents uploaded for this project yet.")
+            else:
+                for doc in existing_docs:
+                    with st.expander(
+                        f"📄 {doc['file_name']} — {doc['document_category']}"
+                    ):
+                        dc1, dc2 = st.columns(2)
+                        dc1.markdown(
+                            f"**Category:** {doc['document_category']}"
+                        )
+                        dc2.markdown(
+                            f"**Uploaded by:** {doc.get('uploaded_by', 'N/A')}"
+                        )
+                        if doc.get("description"):
+                            st.markdown(
+                                f"**Description:** {doc['description']}"
+                            )
+                        st.markdown(
+                            f"**Uploaded at:** {doc.get('uploaded_at', 'N/A')}"
+                        )
+                        if st.button(
+                            "Generate Download Link",
+                            key=f"dl_{doc['id']}"
+                        ):
+                            try:
+                                url = get_document_url(doc["storage_path"])
+                                st.markdown(
+                                    f"[Click here to download {doc['file_name']}]({url})"
+                                )
+                                st.caption(
+                                    "Link expires in 60 minutes."
+                                )
+                            except Exception as e:
+                                st.error(f"Could not generate link: {e}")
+        except Exception as e:
+            st.error(f"Could not load documents: {e}")
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # PAGE — UPDATE RECORDS
 # ══════════════════════════════════════════════════════════════════════════
@@ -1057,7 +1356,7 @@ elif page == "Update Records":
             "Select Project to Update",
             list(project_options_u.keys())
         )
-        project_id_u = project_options_u[selected_u]
+        project_id_u = project_options_u.get(selected_u)
         existing = next(
             (p for p in projects if p["id"] == project_id_u), None
         )
@@ -1217,7 +1516,7 @@ elif page == "Update Records":
             "Select Researcher to Update",
             list(researcher_options_u.keys())
         )
-        researcher_id_u = researcher_options_u[selected_ru]
+        researcher_id_u = researcher_options_u.get(selected_ru)
         existing_r = next(
             (r for r in researchers if r["id"] == researcher_id_u), None
         )
@@ -1447,9 +1746,17 @@ elif page == "AI Search":
         search_kw = st.button("🔍 Keyword Search", use_container_width=True)
 
     # ── AI Search ──
+    all_data = {
+        "projects": projects_df,
+        "research": research_df,
+        "researchers": researchers_df,
+        "prototypes": prototypes_df
+    }
+
+
     if search_ai and query:
         with st.spinner("Searching..."):
-            result = ai_search(query, projects_df, DEPT_MAP, DEPT_FULL)
+            result = ai_search(query, all_data, DEPT_MAP, DEPT_FULL)
 
         if result["mode"] == "ai":
             st.success("🤖 AI Answer")
@@ -1471,118 +1778,531 @@ elif page == "AI Search":
         </div>
         """, unsafe_allow_html=True)
 
-        if result["matched_ids"]:
-            st.markdown(
-                f'<div class="section-header">Matched Projects '
-                f'({len(result["matched_ids"])})</div>',
-                unsafe_allow_html=True
-            )
-            matched_df = projects_df[
-                projects_df["id"].isin(result["matched_ids"])
-            ].copy()
-            matched_df["Department"] = matched_df["department_id"].map(DEPT_FULL)
-            matched_df["Department"] = matched_df["department_id"].map(DEPT_FULL)
-            for _, proj in matched_df.iterrows():
-                with st.expander(
-                    f"📋 {proj['title']} — {proj.get('status', 'N/A')}"
-                ):
-                    ca, cb, cc = st.columns(3)
-                    ca.markdown(
-                        f"**Department:** {proj.get('Department', 'N/A')}"
-                    )
-                    cb.markdown(
-                        f"**Status:** {proj.get('status', 'N/A')}"
-                    )
-                    cc.markdown(
-                        f"**Research Lead:** "
-                        f"{proj.get('lead_researcher_name', 'N/A')}"
-                    )
-                    cd, ce, cf = st.columns(3)
-                    cd.markdown(
-                        f"**Supervisor:** "
-                        f"{proj.get('supervisor_name', 'N/A')}"
-                    )
-                    ce.markdown(
-                        f"**Start Date:** {proj.get('start_date', 'N/A')}"
-                    )
-                    cf.markdown(
-                        f"**Expected End:** "
-                        f"{proj.get('expected_end_date', 'N/A')}"
-                    )
-                    if proj.get("summary"):
-                        st.markdown(f"**Summary:** {proj['summary']}")
-                    if proj.get("keywords"):
-                        st.markdown(f"**Keywords:** `{proj['keywords']}`")
-        else:
-            st.info("No matching projects found for this query.")
+        # Matched records are rendered from result["matched"] below.
 
+        
+        matched = result.get("matched", {}) or {}
+        if not any(matched.values()):
+            st.info("No matching records found for this query.")
+        else:
+            for record_type, ids in result["matched"].items():
+                if not ids:
+                    continue
+                st.markdown(
+                    f'<div class="section-header">'
+                    f'{record_type.title()} ({len(ids)})'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                if record_type == "projects" and not projects_df.empty:
+                    matched_df = projects_df[
+                        projects_df["id"].isin(ids)
+                    ].copy()
+                    matched_df["Department"] = matched_df[
+                        "department_id"
+                    ].map(DEPT_FULL)
+                    for _, proj in matched_df.iterrows():
+                        with st.expander(f"📋 {proj['title']}"):
+                            c1, c2, c3 = st.columns(3)
+                            c1.markdown(
+                                f"**Dept:** {proj.get('Department','N/A')}"
+                            )
+                            c2.markdown(
+                                f"**Status:** {proj.get('status','N/A')}"
+                            )
+                            c3.markdown(
+                                f"**Lead:** "
+                                f"{proj.get('lead_researcher_name','N/A')}"
+                            )
+
+                elif record_type == "research" and not research_df.empty:
+                    matched_df = research_df[
+                        research_df["id"].isin(ids)
+                    ].copy()
+                    matched_df["Department"] = matched_df[
+                        "department_id"
+                    ].map(DEPT_FULL)
+                    for _, res in matched_df.iterrows():
+                        with st.expander(f"🔬 {res['title']}"):
+                            c1, c2, c3 = st.columns(3)
+                            c1.markdown(
+                                f"**Type:** {res.get('research_type','N/A')}"
+                            )
+                            c2.markdown(
+                                f"**Status:** {res.get('status','N/A')}"
+                            )
+                            c3.markdown(
+                                f"**Lead:** "
+                                f"{res.get('lead_researcher_name','N/A')}"
+                            )
+                            if res.get("summary"):
+                                st.markdown(
+                                    f"**Summary:** {res['summary']}"
+                                )
+
+                elif record_type == "researchers" and not researchers_df.empty:
+                    matched_df = researchers_df[
+                        researchers_df["id"].isin(ids)
+                    ].copy()
+                    for _, r in matched_df.iterrows():
+                        with st.expander(f"👤 {r['full_name']}"):
+                            c1, c2 = st.columns(2)
+                            c1.markdown(
+                                f"**Dept:** "
+                                f"{DEPT_FULL.get(r['department_id'],'N/A')}"
+                            )
+                            c2.markdown(
+                                f"**Specialization:** "
+                                f"{r.get('specialization','N/A')}"
+                            )
+
+                elif record_type == "prototypes" and not prototypes_df.empty:
+                    matched_df = prototypes_df[
+                        prototypes_df["id"].isin(ids)
+                    ].copy()
+                    for _, p in matched_df.iterrows():
+                        with st.expander(f"🔧 {p['name']}"):
+                            c1, c2 = st.columns(2)
+                            c1.markdown(
+                                f"**Stage:** "
+                                f"{p.get('development_stage','N/A')}"
+                            )
+                            c2.markdown(
+                                f"**Crop:** "
+                                f"{p.get('target_crop','N/A')}"
+                            )
+        
         if result.get("error"):
             with st.expander("Technical details"):
                 st.code(result["error"])
 
     # ── Keyword Search ──
     if search_kw and query:
-        kw_results = keyword_search(query, projects_df, DEPT_MAP)
+        kw_results = keyword_search(query, all_data, DEPT_MAP)
+        total_kw = sum(len(v) for v in kw_results.values())
 
         st.markdown(
             f'<div class="section-header">Keyword Results '
-            f'({len(kw_results)})</div>',
+            f'({total_kw})</div>',
             unsafe_allow_html=True
         )
 
-        if kw_results.empty:
-            st.info(f"No projects found matching '{query}'.")
+        if not total_kw:
+            st.info(f"No records found matching '{query}'.")
         else:
-            matched_df["Department"] = matched_df["department_id"].map(DEPT_FULL)
-            for _, proj in matched_df.iterrows():
-                with st.expander(
-                    f"📋 {proj['title']} — {proj.get('status', 'N/A')}"
-                ):
-                    ca, cb, cc = st.columns(3)
-                    ca.markdown(
-                        f"**Department:** {proj.get('Department', 'N/A')}"
-                    )
-                    cb.markdown(
-                        f"**Status:** {proj.get('status', 'N/A')}"
-                    )
-                    cc.markdown(
-                        f"**Research Lead:** "
-                        f"{proj.get('lead_researcher_name', 'N/A')}"
-                    )
-                    cd, ce, cf = st.columns(3)
-                    cd.markdown(
-                        f"**Supervisor:** "
-                        f"{proj.get('supervisor_name', 'N/A')}"
-                    )
-                    ce.markdown(
-                        f"**Start Date:** {proj.get('start_date', 'N/A')}"
-                    )
-                    cf.markdown(
-                        f"**Expected End:** "
-                        f"{proj.get('expected_end_date', 'N/A')}"
-                    )
-                    if proj.get("summary"):
-                        st.markdown(f"**Summary:** {proj['summary']}")
-                    if proj.get("keywords"):
-                        st.markdown(f"**Keywords:** `{proj['keywords']}`")
+            for record_type, records in kw_results.items():
+                if not records:
+                    continue
+                st.markdown(f"**{record_type.title()} ({len(records)})**")
+                df_kw = pd.DataFrame(records)
+                if "department_id" in df_kw.columns:
+                    df_kw["Department"] = df_kw["department_id"].map(DEPT_FULL)
+                st.dataframe(
+                    df_kw, use_container_width=True, hide_index=True
+                )
 
     # ── Search Log ──
     if query and (search_ai or search_kw):
         try:
             from database import SessionLocal
             from models.models import SearchLog
+            if search_ai:
+                results_count = sum(
+                    len(v) for v in result.get("matched", {}).values()
+                )
+            else:
+                results_count = sum(len(v) for v in kw_results.values())
             db = SessionLocal()
             log = SearchLog(
                 query_text=query,
                 queried_by=role,
-                results_returned=len(
-                    result["matched_ids"]
-                    if search_ai
-                    else kw_results
-                )
+                results_returned=results_count
             )
             db.add(log)
             db.commit()
             db.close()
         except Exception:
             pass
+
+
+
+# ══════════════════════════════════════════════════════════════════════
+# PAGE 7 — RESEARCH
+# ══════════════════════════════════════════════════════════════════════
+elif page == "Research":
+    st.markdown(
+        '<div class="page-title">Research Records</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="page-sub">'
+        'All research studies, papers, and investigations'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    if research_df.empty:
+        st.info(
+            "No research records yet. "
+            "Upload a document to extract and create one, "
+            "or use Data Entry to add manually."
+        )
+    else:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            dept_filter_r = st.selectbox(
+                "Filter by Department",
+                ["All"] + list(DEPT_MAP.values()),
+                key="res_dept"
+            )
+        with col2:
+            status_filter_r = st.selectbox(
+                "Filter by Status",
+                ["All", "Ongoing", "Completed",
+                 "Abandoned", "Pending Review", "Published"],
+                key="res_status"
+            )
+        with col3:
+            type_filter = st.selectbox(
+                "Filter by Type",
+                ["All", "Experimental", "Applied", "Adaptive",
+                 "Survey", "Review", "Development",
+                 "Evaluation", "Other"],
+                key="res_type"
+            )
+
+        search_r = st.text_input(
+            "Search research",
+            placeholder="title, keyword, researcher...",
+            key="res_search"
+        )
+
+        filtered_r = research_df.copy()
+        if dept_filter_r != "All":
+            filtered_r = filtered_r[
+                filtered_r["department_id"].map(DEPT_MAP) == dept_filter_r
+            ]
+        if status_filter_r != "All":
+            filtered_r = filtered_r[
+                filtered_r["status"] == status_filter_r
+            ]
+        if type_filter != "All":
+            filtered_r = filtered_r[
+                filtered_r["research_type"] == type_filter
+            ]
+        if search_r:
+            mask = (
+                filtered_r["title"].str.lower().str.contains(
+                    search_r.lower(), na=False
+                ) |
+                filtered_r.get(
+                    "keywords", pd.Series()
+                ).str.lower().str.contains(search_r.lower(), na=False) |
+                filtered_r.get(
+                    "lead_researcher_name", pd.Series()
+                ).str.lower().str.contains(search_r.lower(), na=False)
+            )
+            filtered_r = filtered_r[mask]
+
+        st.markdown(f"**{len(filtered_r)} record(s) found**")
+        st.markdown("---")
+
+        for _, row in filtered_r.iterrows():
+            machine_label = (
+                "🔧 Machine Built"
+                if row.get("machine_built")
+                else "📄 No Machine"
+            )
+            machine_color = (
+                "#2E7D32"
+                if row.get("machine_built")
+                else "#9E9E9E"
+            )
+            extracted_badge = (
+                "<span style='background:#1565C0;color:white;"
+                "padding:0.1rem 0.5rem;border-radius:10px;"
+                "font-size:0.7rem;margin-left:0.5rem;'>"
+                "AI Extracted</span>"
+                if row.get("extracted_from_document")
+                else ""
+            )
+
+            with st.expander(f"🔬 {row['title']}"):
+                st.markdown(
+                    f"**Type:** {row.get('research_type','N/A')} | "
+                    f"**Status:** {row.get('status','N/A')} | "
+                    f"<span style='background:{machine_color};"
+                    f"color:white;padding:0.15rem 0.6rem;"
+                    f"border-radius:10px;font-size:0.75rem;'>"
+                    f"{machine_label}</span>{extracted_badge}",
+                    unsafe_allow_html=True
+                )
+                st.markdown("---")
+
+                cs1, cs2 = st.columns(2)
+                cs1.markdown("**Principal Supervisor**")
+                cs1.markdown(
+                    f"Name: {row.get('supervisor_name','N/A')}"
+                )
+                cs1.markdown(
+                    f"Designation: "
+                    f"{row.get('supervisor_designation','N/A')}"
+                )
+                cs1.markdown(
+                    f"Email: {row.get('supervisor_email','N/A')}"
+                )
+
+                cs2.markdown("**Lead Researcher**")
+                cs2.markdown(
+                    f"Name: "
+                    f"{row.get('lead_researcher_name','N/A')}"
+                )
+                cs2.markdown(
+                    f"Designation: "
+                    f"{row.get('lead_researcher_designation','N/A')}"
+                )
+
+                st.markdown("---")
+                cd1, cd2, cd3 = st.columns(3)
+                cd1.markdown(
+                    f"**Start:** {row.get('start_date','N/A')}"
+                )
+                cd2.markdown(
+                    f"**Expected End:** "
+                    f"{row.get('expected_end_date','N/A')}"
+                )
+                actual = row.get("actual_end_date")
+                cd3.markdown(
+                    f"**Actual End:** "
+                    f"{actual if actual else '— Not completed'}"
+                )
+
+                if row.get("journal_name"):
+                    st.markdown(
+                        f"**Journal:** {row['journal_name']}"
+                    )
+                if row.get("doi_or_link"):
+                    st.markdown(
+                        f"**DOI/Link:** [{row['doi_or_link']}]"
+                        f"({row['doi_or_link']})"
+                    )
+                if row.get("funding_source"):
+                    st.markdown(
+                        f"**Funding:** {row['funding_source']}"
+                    )
+                if row.get("summary"):
+                    st.markdown(f"**Summary:** {row['summary']}")
+                if row.get("findings"):
+                    st.markdown(f"**Findings:** {row['findings']}")
+                if row.get("keywords"):
+                    st.markdown(
+                        f"**Keywords:** `{row['keywords']}`"
+                    )
+
+                # Documents
+                st.markdown("---")
+                st.markdown("**Documents**")
+                try:
+                    docs = fetch_project_documents(row["id"])
+                    if not docs:
+                        st.caption("No documents uploaded.")
+                    else:
+                        for doc in docs:
+                            dc1, dc2 = st.columns([3, 1])
+                            dc1.markdown(
+                                f"📄 {doc['file_name']} — "
+                                f"_{doc['document_category']}_"
+                            )
+                            if dc2.button(
+                                "Download",
+                                key=f"res_dl_{doc['id']}"
+                            ):
+                                url = get_document_url(
+                                    doc["storage_path"]
+                                )
+                                st.markdown(
+                                    f"[Download {doc['file_name']}]"
+                                    f"({url})"
+                                )
+                except Exception:
+                    st.caption("Documents unavailable.")
+
+
+
+# ══════════════════════════════════════════════════════════════════════
+# PAGE — PENDING APPROVALS
+# ══════════════════════════════════════════════════════════════════════
+elif page == "Pending Approvals":
+    st.markdown(
+        '<div class="page-title">Pending Approvals</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="page-sub">'
+        'Review and confirm AI-extracted research records '
+        'before they are saved to the database.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    pending = fetch_pending_staging()
+
+    if not pending:
+        st.success(
+            "✅ No pending approvals. All extractions have been reviewed."
+        )
+    else:
+        st.markdown(
+            f"**{len(pending)} record(s) awaiting confirmation**"
+        )
+        st.markdown("---")
+        confirmer = st.text_input(
+            "Your Name (required to confirm or reject)"
+        )
+
+        for record in pending:
+            with st.expander(
+                f"📄 Extracted: "
+                f"{record.get('extracted_title','Untitled')}"
+            ):
+                st.markdown(
+                    "Review the AI-extracted details below. "
+                    "Edit anything that needs correcting, "
+                    "then confirm to save to the database."
+                )
+
+                dept_opts = {v: k for k, v in DEPT_FULL.items()}
+                with st.form(f"confirm_form_{record['id']}"):
+                    title_c = st.text_input(
+                        "Title",
+                        value=record.get("extracted_title", "") or ""
+                    )
+                    dept_c = st.selectbox(
+                        "Department",
+                        list(DEPT_FULL.values())
+                    )
+                    dept_id_c = dept_opts[dept_c]
+
+                    type_options = [
+                        "Experimental", "Applied", "Adaptive",
+                        "Survey", "Review", "Development",
+                        "Evaluation", "Other"
+                    ]
+                    rt = record.get("extracted_research_type", "Other")
+                    rtype_c = st.selectbox(
+                        "Research Type",
+                        type_options,
+                        index=type_options.index(rt)
+                        if rt in type_options else 7
+                    )
+
+                    lead_c = st.text_input(
+                        "Lead Researcher",
+                        value=record.get(
+                            "extracted_lead_researcher", ""
+                        ) or ""
+                    )
+                    sup_c = st.text_input(
+                        "Supervisor",
+                        value=record.get(
+                            "extracted_supervisor", ""
+                        ) or ""
+                    )
+                    kw_c = st.text_input(
+                        "Keywords",
+                        value=record.get(
+                            "extracted_keywords", ""
+                        ) or ""
+                    )
+                    sum_c = st.text_area(
+                        "Summary",
+                        value=record.get(
+                            "extracted_summary", ""
+                        ) or ""
+                    )
+                    obj_c = st.text_area(
+                        "Objectives",
+                        value=record.get(
+                            "extracted_objectives", ""
+                        ) or ""
+                    )
+                    find_c = st.text_area(
+                        "Findings",
+                        value=record.get(
+                            "extracted_findings", ""
+                        ) or ""
+                    )
+                    fund_c = st.text_input(
+                        "Funding Source",
+                        value=record.get(
+                            "extracted_funding_source", ""
+                        ) or ""
+                    )
+                    journal_c = st.text_input(
+                        "Journal Name",
+                        value=record.get(
+                            "extracted_journal", ""
+                        ) or ""
+                    )
+                    machine_c = st.radio(
+                        "Machine Built?",
+                        ["No", "Yes"],
+                        horizontal=True
+                    )
+
+                    col_approve, col_reject = st.columns(2)
+                    approve = col_approve.form_submit_button(
+                        "✅ Confirm & Save",
+                        use_container_width=True
+                    )
+                    reject = col_reject.form_submit_button(
+                        "❌ Reject",
+                        use_container_width=True
+                    )
+
+                    if approve:
+                        if not confirmer:
+                            st.error(
+                                "Please enter your name above "
+                                "before confirming."
+                            )
+                        else:
+                            try:
+                                confirm_staging(
+                                    staging_id=record["id"],
+                                    confirmed_by=confirmer,
+                                    data={
+                                        "title": title_c,
+                                        "department_id": dept_id_c,
+                                        "research_type": rtype_c,
+                                        "lead_researcher_name": lead_c or None,
+                                        "supervisor_name": sup_c or None,
+                                        "keywords": kw_c or None,
+                                        "summary": sum_c or None,
+                                        "objectives": obj_c or None,
+                                        "findings": find_c or None,
+                                        "funding_source": fund_c or None,
+                                        "journal_name": journal_c or None,
+                                        "machine_built": machine_c == "Yes",
+                                        "status": "Completed",
+                                        "extracted_from_document": True,
+                                        "extraction_confirmed": True,
+                                    }
+                                )
+                                st.success(
+                                    f"✅ Research record saved: {title_c}"
+                                )
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error saving: {e}")
+
+                    if reject:
+                        if not confirmer:
+                            st.error("Please enter your name first.")
+                        else:
+                            try:
+                                reject_staging(record["id"])
+                                st.warning("Record rejected.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error rejecting: {e}")
