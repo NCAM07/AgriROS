@@ -1,0 +1,37 @@
+# Environment & Secrets
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# Node / Next.js
+node_modules/
+web/.next/
+web/out/
+
+# IDE / Agent Config
+.vscode/
+.idea/
+.claude/
+AGENTS.md
+CLAUDE.md
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / Dev files
+tmp_*.py
+*.log
+_build_directive/
